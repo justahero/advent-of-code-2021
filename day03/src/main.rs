@@ -13,6 +13,24 @@ impl BinaryList {
         Self { binaries, count }
     }
 
+    /// Determines gamma & epsilon rates
+    pub fn find_rates(&self) -> (u32, u32) {
+        let counts = self.count();
+
+        let mut gamma = 0_u32;
+        for (pos, (zeros, ones)) in counts.iter().enumerate() {
+            if ones > zeros {
+                gamma |= 1_u32.shl(self.count - pos - 1);
+            }
+        }
+
+        // epsilon is the negative
+        let mask = 1_u32.shl(self.count) - 1;
+        let epsilon = !gamma & mask;
+
+        (gamma, epsilon)
+    }
+
     /// Counts all zeros/ones for all positions, starting from highest bit
     pub fn count(&self) -> Vec<(usize, usize)> {
         let mut result = Vec::new();
@@ -56,7 +74,9 @@ fn parse_input(input: &str) -> anyhow::Result<BinaryList> {
 
 fn main() -> anyhow::Result<()> {
     let input = parse_input(include_str!("input.txt"))?;
-    let list = input.count();
+    let (gamma, epsilon) = input.find_rates();
+    dbg!(gamma * epsilon);
+
     Ok(())
 }
 
@@ -94,5 +114,13 @@ mod tests {
             ],
             list,
         );
+    }
+
+    #[test]
+    fn find_rates() {
+        let binary_list = parse_input(INPUT).expect("Failed to parse input.");
+        let (gamma, epsilon) = binary_list.find_rates();
+        assert_eq!(22, gamma);
+        assert_eq!(9, epsilon);
     }
 }
