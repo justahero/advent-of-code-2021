@@ -15,18 +15,13 @@ impl BinaryList {
 
     /// Determines gamma & epsilon rates
     pub fn find_rates(&self) -> (u32, u32) {
-        let counts = self.count();
+        let gamma = self.count()
+            .iter()
+            .enumerate()
+            .filter(|(_pos, (zeros, ones))| ones > zeros)
+            .fold(0_u32, |gamma, (pos, _)| gamma + 1_u32.shl(self.count - pos - 1));
 
-        let mut gamma = 0_u32;
-        for (pos, (zeros, ones)) in counts.iter().enumerate() {
-            if ones > zeros {
-                gamma |= 1_u32.shl(self.count - pos - 1);
-            }
-        }
-
-        // epsilon is the negative
-        let mask = 1_u32.shl(self.count) - 1;
-        let epsilon = !gamma & mask;
+        let epsilon = !gamma & (1_u32.shl(self.count) - 1);
 
         (gamma, epsilon)
     }
