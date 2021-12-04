@@ -18,6 +18,10 @@ impl Binary {
     pub fn new(value: u32) -> Self {
         Self(value)
     }
+
+    pub fn is_bit_zero(&self, position: usize) -> bool {
+        self.0 & 1_u32.shl(position - 1) == 0
+    }
 }
 
 #[derive(Debug)]
@@ -59,13 +63,13 @@ impl BinaryList {
     where
         F: Fn(Vec<Binary>, Vec<Binary>) -> Vec<Binary>,
     {
+        // a bit wonky
         if binaries.len() == 1 || position == 0 {
             return binaries[0].0;
         }
 
-        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries
-            .iter()
-            .partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
+        let (zeros, ones): (Vec<Binary>, Vec<Binary>) =
+            binaries.iter().partition(|&bin| bin.is_bit_zero(position));
 
         Self::find_rating(position - 1, &cmp_fn(zeros, ones), cmp_fn)
     }
@@ -81,6 +85,7 @@ impl BinaryList {
                 gamma + 1_u32.shl(self.count - pos - 1)
             });
 
+        // mask out epsilon rate
         let epsilon = !gamma & (1_u32.shl(self.count) - 1);
 
         (gamma, epsilon)
