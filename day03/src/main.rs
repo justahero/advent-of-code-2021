@@ -1,4 +1,7 @@
-use std::{ops::Shl, fmt::{Formatter, Result, Debug}};
+use std::{
+    fmt::{Debug, Formatter, Result},
+    ops::Shl,
+};
 
 use anyhow::anyhow;
 
@@ -23,6 +26,14 @@ struct BinaryList {
     pub count: usize,
 }
 
+fn most_common(zeros: &[Binary], ones: &[Binary]) -> bool {
+    ones.len() >= zeros.len()
+}
+
+fn least_common(zeros: &[Binary], ones: &[Binary]) -> bool {
+    ones.len() < zeros.len()
+}
+
 impl BinaryList {
     pub fn new(binaries: Vec<Binary>, count: usize) -> Self {
         Self { binaries, count }
@@ -31,49 +42,27 @@ impl BinaryList {
     /// Find oxygen generator & CO2 scrubber ratings
     /// The 2nd part of the day
     pub fn find_oxygen_co2scrubber_ratings(&self) -> (u32, u32) {
-        println!("---- OXYGEN ----");
-        let oxygen = Self::find_oxygen(self.count, &self.binaries, |zeros, ones| ones.len() >= zeros.len());
-        println!("---- CO2 ----");
-        let co2 = Self::find_co2(self.count, &self.binaries, |zeros, ones| ones.len() < zeros.len());
-        println!("::: RESULT oxygen: {}, co2: {}", oxygen, co2);
+        let oxygen = Self::find_rating(self.count, &self.binaries, most_common);
+        let co2 = Self::find_rating(self.count, &self.binaries, least_common);
         (oxygen, co2)
     }
 
-    fn find_oxygen<F>(position: usize, binaries: &[Binary], cmp_fn: F) -> u32
+    fn find_rating<F>(position: usize, binaries: &[Binary], cmp_fn: F) -> u32
     where
-        F: Fn(&[Binary], &[Binary]) -> bool
+        F: Fn(&[Binary], &[Binary]) -> bool,
     {
         if binaries.len() == 1 || position == 0 {
             return binaries[0].0;
         }
 
-        println!(":: position: {}, binaries: {:?}", position, binaries);
-        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries.iter().partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
-        println!("  zeros: {:?}\n  ones: {:?}", zeros, ones);
+        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries
+            .iter()
+            .partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
 
         if cmp_fn(&zeros, &ones) {
-            Self::find_oxygen(position - 1, &ones, cmp_fn)
+            Self::find_rating(position - 1, &ones, cmp_fn)
         } else {
-            Self::find_oxygen(position - 1, &zeros, cmp_fn)
-        }
-    }
-
-    fn find_co2<F>(position: usize, binaries: &[Binary], cmp_fn: F) -> u32
-    where
-        F: Fn(&[Binary], &[Binary]) -> bool
-    {
-        if binaries.len() == 1 || position == 0 {
-            return binaries[0].0;
-        }
-
-        println!(":: position: {}, binaries: {:?}", position, binaries);
-        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries.iter().partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
-        println!("  zeros: {:?}\n  ones: {:?}", zeros, ones);
-
-        if cmp_fn(&zeros, &ones) {
-            Self::find_co2(position - 1, &ones, cmp_fn)
-        } else {
-            Self::find_co2(position - 1, &zeros, cmp_fn)
+            Self::find_rating(position - 1, &zeros, cmp_fn)
         }
     }
 
