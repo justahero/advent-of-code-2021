@@ -26,12 +26,20 @@ struct BinaryList {
     pub count: usize,
 }
 
-fn most_common(zeros: &[Binary], ones: &[Binary]) -> bool {
-    ones.len() >= zeros.len()
+fn most_common<'a>(zeros: Vec<Binary>, ones: Vec<Binary>) -> Vec<Binary> {
+    if ones.len() >= zeros.len() {
+        ones
+    } else {
+        zeros
+    }
 }
 
-fn least_common(zeros: &[Binary], ones: &[Binary]) -> bool {
-    ones.len() < zeros.len()
+fn least_common<'a>(zeros: Vec<Binary>, ones: Vec<Binary>) -> Vec<Binary> {
+    if ones.len() < zeros.len() {
+        ones
+    } else {
+        zeros
+    }
 }
 
 impl BinaryList {
@@ -47,9 +55,9 @@ impl BinaryList {
         (oxygen, co2)
     }
 
-    fn find_rating<F>(position: usize, binaries: &[Binary], cmp_fn: F) -> u32
+    fn find_rating<'a, F>(position: usize, binaries: &[Binary], cmp_fn: F) -> u32
     where
-        F: Fn(&[Binary], &[Binary]) -> bool,
+        F: Fn(Vec<Binary>, Vec<Binary>) -> Vec<Binary>,
     {
         if binaries.len() == 1 || position == 0 {
             return binaries[0].0;
@@ -59,11 +67,7 @@ impl BinaryList {
             .iter()
             .partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
 
-        if cmp_fn(&zeros, &ones) {
-            Self::find_rating(position - 1, &ones, cmp_fn)
-        } else {
-            Self::find_rating(position - 1, &zeros, cmp_fn)
-        }
+        Self::find_rating(position - 1, &cmp_fn(zeros, ones), cmp_fn)
     }
 
     /// Determines gamma & epsilon ratings
