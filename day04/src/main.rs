@@ -88,7 +88,9 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
 
 fn main() -> anyhow::Result<()> {
     let system = parse_input(include_str!("input.txt"))?;
-    let (board, numbers) = system.find_board().ok_or(anyhow!("No winning board found."))?;
+    let (board, numbers) = system
+        .find_board()
+        .ok_or(anyhow!("No winning board found."))?;
 
     Ok(())
 }
@@ -130,5 +132,15 @@ mod tests {
             bingo.numbers,
         );
         assert_eq!(3, bingo.boards.len(),);
+    }
+
+    #[test]
+    fn find_winner_board() {
+        let bingo = parse_input(INPUT).expect("Failed to parse input.");
+
+        let result = bingo.find_board();
+        assert!(result.is_some());
+        let (_board, numbers) = result.expect("Failed to get board.");
+        assert_eq!(vec![14, 21, 17, 24, 4], numbers);
     }
 }
