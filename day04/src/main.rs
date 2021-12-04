@@ -6,12 +6,27 @@ struct Board {
 }
 
 impl Board {
+    const ROWS: usize = 5;
+    const COLS: usize = 5;
+
     pub fn new(fields: Vec<u32>) -> Self {
         Self { fields }
     }
 
+    /// Check the board has a row / column of complete numbers
     pub fn is_marked(&self, numbers: &[u32]) -> Option<Vec<u32>> {
+        for row in 0..Self::ROWS {
+        }
+        for col in 0..Self::COLS {
+        }
         None
+    }
+
+    pub fn row_iter(&self, row: u32) -> impl Iterator<Item = u32> + '_ {
+
+    }
+
+    fn marked_row(&self, row: usize) -> bool {
     }
 }
 
@@ -88,7 +103,7 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
 
 fn main() -> anyhow::Result<()> {
     let system = parse_input(include_str!("input.txt"))?;
-    let (board, numbers) = system
+    let (_board, numbers) = system
         .find_board()
         .ok_or(anyhow!("No winning board found."))?;
 
