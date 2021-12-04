@@ -6,8 +6,7 @@ struct Board {
 }
 
 impl Board {
-    const ROWS: usize = 5;
-    const COLS: usize = 5;
+    const SIDE: usize = 5;
 
     pub fn new(fields: Vec<u32>) -> Self {
         Self { fields }
@@ -15,18 +14,37 @@ impl Board {
 
     /// Check the board has a row / column of complete numbers
     pub fn is_marked(&self, numbers: &[u32]) -> Option<Vec<u32>> {
-        for row in 0..Self::ROWS {
+        for y in 0..Self::SIDE {
+            let row = self.row(y);
+            if row.iter().all(|number| numbers.contains(&number)) {
+                return Some(row);
+            }
         }
-        for col in 0..Self::COLS {
+        for x in 0..Self::SIDE {
+            let col = self.col(x);
+            if col.iter().all(|number| numbers.contains(&number)) {
+                return Some(col);
+            }
         }
         None
     }
 
-    pub fn row_iter(&self, row: u32) -> impl Iterator<Item = u32> + '_ {
-
+    pub fn row(&self, row: usize) -> Vec<u32> {
+        self.fields
+            .iter()
+            .skip(Self::SIDE * row)
+            .take(Self::SIDE)
+            .map(|&val| val)
+            .collect()
     }
 
-    fn marked_row(&self, row: usize) -> bool {
+    pub fn col(&self, col: usize) -> Vec<u32> {
+        self.fields
+            .iter()
+            .skip(col)
+            .step_by(Self::SIDE)
+            .map(|&val| val)
+            .collect()
     }
 }
 
@@ -147,6 +165,26 @@ mod tests {
             bingo.numbers,
         );
         assert_eq!(3, bingo.boards.len(),);
+    }
+
+    #[test]
+    fn test_board_rows_and_cols() {
+        let bingo = parse_input(INPUT).unwrap();
+        let board = &bingo.boards[0];
+
+        // rows
+        assert_eq!(vec![22, 13, 17, 11, 0], board.row(0));
+        assert_eq!(vec![8, 2, 23, 4, 24], board.row(1));
+        assert_eq!(vec![21, 9, 14, 16, 7], board.row(2));
+        assert_eq!(vec![6, 10, 3, 18, 5], board.row(3));
+        assert_eq!(vec![1, 12, 20, 15, 19], board.row(4));
+
+        // cols
+        assert_eq!(vec![22, 8, 21, 6, 1], board.col(0));
+        assert_eq!(vec![13, 2, 9, 10, 12], board.col(1));
+        assert_eq!(vec![17, 23, 14, 3, 20], board.col(2));
+        assert_eq!(vec![11, 4, 16, 18, 15], board.col(3));
+        assert_eq!(vec![0, 24, 7, 5, 19], board.col(4));
     }
 
     #[test]
