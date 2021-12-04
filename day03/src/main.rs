@@ -23,14 +23,6 @@ struct BinaryList {
     pub count: usize,
 }
 
-fn bit_is_unset(pos: usize, binary: u32) -> bool {
-    binary & 1_u32.shl(pos - 1) == 0
-}
-
-fn bit_is_set(pos: usize, binary: u32) -> bool {
-    binary & 1_u32.shl(pos - 1) > 0
-}
-
 impl BinaryList {
     pub fn new(binaries: Vec<Binary>, count: usize) -> Self {
         Self { binaries, count }
@@ -39,31 +31,43 @@ impl BinaryList {
     /// Find oxygen generator & CO2 scrubber ratings
     /// The 2nd part of the day
     pub fn find_oxygen_co2scrubber_ratings(&self) -> (u32, u32) {
-        let oxygen = Self::find_rating(self.count, &self.binaries, bit_is_unset);
-        let co2 = Self::find_rating(self.count - 1, &self.binaries, bit_is_set);
+        println!("---- OXYGEN ----");
+        let oxygen = Self::find_oxygen(self.count, &self.binaries);
+        println!("---- CO2 ----");
+        let co2 = Self::find_co2(self.count, &self.binaries);
+        println!("::: RESULT oxygen: {}, co2: {}", oxygen, co2);
         (oxygen, co2)
     }
 
-    /// Partitions the
-    fn find_rating<'a, F>(position: usize, list: &[Binary], f: F) -> u32
-    where
-        F: Fn(usize, u32) -> bool,
-    {
-        println!("FIND RATING: position: {}, list: {:?}", position, list);
-        let (left, right): (Vec<Binary>, Vec<Binary>) = list.iter().partition(|&&bin| f(position, bin.0));
-        println!("  LEFT: {:?}", left);
-        println!("  RIGHT: {:?}", right);
+    fn find_oxygen(position: usize, binaries: &[Binary]) -> u32 {
+        if binaries.len() == 1 || position == 0 {
+            return binaries[0].0;
+        }
 
-        if left.len() <= right.len() {
-            if right.len() == 1 {
-                return right[0].0;
-            }
-            Self::find_rating(position - 1, &right, f)
+        println!(":: position: {}, binaries: {:?}", position, binaries);
+        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries.iter().partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
+        println!("  zeros: {:?}\n  ones: {:?}", zeros, ones);
+
+        if ones.len() >= zeros.len() {
+            Self::find_oxygen(position - 1, &ones)
         } else {
-            if left.len() == 1 {
-                return left[0].0;
-            }
-            Self::find_rating(position - 1, &left, f)
+            Self::find_oxygen(position - 1, &zeros)
+        }
+    }
+
+    fn find_co2(position: usize, binaries: &[Binary]) -> u32 {
+        if binaries.len() == 1 || position == 0 {
+            return binaries[0].0;
+        }
+
+        println!(":: position: {}, binaries: {:?}", position, binaries);
+        let (zeros, ones): (Vec<Binary>, Vec<Binary>) = binaries.iter().partition(|&&bin| bin.0 & 1_u32.shl(position - 1) == 0);
+        println!("  zeros: {:?}\n  ones: {:?}", zeros, ones);
+
+        if ones.len() >= zeros.len() {
+            Self::find_co2(position - 1, &zeros)
+        } else {
+            Self::find_co2(position - 1, &ones)
         }
     }
 
