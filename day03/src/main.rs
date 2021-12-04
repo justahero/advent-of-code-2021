@@ -13,8 +13,14 @@ impl BinaryList {
         Self { binaries, count }
     }
 
-    /// Determines gamma & epsilon rates
-    pub fn find_rates(&self) -> (u32, u32) {
+    /// Find oxygen generator & CO2 scrubber ratings
+    /// The 2nd part of the day
+    pub fn find_oxygen_co2scrubber_ratings(&self) {
+
+    }
+
+    /// Determines gamma & epsilon ratings
+    pub fn find_gama_epsilon_ratings(&self) -> (u32, u32) {
         let gamma = self.count()
             .iter()
             .enumerate()
@@ -31,20 +37,18 @@ impl BinaryList {
         let mut result = Vec::new();
 
         for pos in (0..self.count).rev() {
-            let ones = self.count_ones(pos);
-            let zeros = self.binaries.len() - ones;
-            result.push((zeros, ones));
+            let (zeros, ones) = self.group_binaries(pos);
+            result.push((zeros.len(), ones.len()));
         }
 
         result
     }
 
-    /// Count all the ones in all binaries in given position
-    fn count_ones(&self, position: usize) -> usize {
+    /// Group binaries by ones & zeros
+    fn group_binaries(&self, position: usize) -> (Vec<u32>, Vec<u32>) {
         self.binaries
             .iter()
-            .filter(|&bin| bin & 1_u32.shl(position) > 0)
-            .count()
+            .partition(|&bin| bin & 1_u32.shl(position) == 0)
     }
 }
 
@@ -69,7 +73,7 @@ fn parse_input(input: &str) -> anyhow::Result<BinaryList> {
 
 fn main() -> anyhow::Result<()> {
     let input = parse_input(include_str!("input.txt"))?;
-    let (gamma, epsilon) = input.find_rates();
+    let (gamma, epsilon) = input.find_gama_epsilon_ratings();
     dbg!(gamma * epsilon);
 
     Ok(())
@@ -112,10 +116,15 @@ mod tests {
     }
 
     #[test]
-    fn find_rates() {
+    fn find_gamma_epsilon_ratings() {
         let binary_list = parse_input(INPUT).expect("Failed to parse input.");
-        let (gamma, epsilon) = binary_list.find_rates();
+        let (gamma, epsilon) = binary_list.find_gama_epsilon_ratings();
         assert_eq!(22, gamma);
         assert_eq!(9, epsilon);
+    }
+
+    #[test]
+    fn find_oxygen_rating() {
+
     }
 }
