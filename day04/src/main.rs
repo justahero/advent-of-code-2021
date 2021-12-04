@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Board {
     pub fields: Vec<u32>,
 }
@@ -41,6 +41,23 @@ impl BingoSubsystem {
     pub fn new(numbers: Vec<u32>, boards: Vec<Board>) -> Self {
         Self { numbers, boards }
     }
+
+    /// Iterate over all Bingo numbers and check that there is one board that wins
+    pub fn find_board(&self) -> Option<(Board, Vec<u32>)> {
+        let mut numbers = Vec::new();
+
+        for number in self.numbers.clone() {
+            numbers.push(number);
+
+            for board in &self.boards {
+                if let Some(winners) = board.is_marked(&numbers) {
+                    return Some((board.clone(), winners));
+                }
+            }
+        }
+
+        None
+    }
 }
 
 /// Parses the input, the format is structured as follows
@@ -51,7 +68,6 @@ impl BingoSubsystem {
 fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
     let blocks = input.split("\n\n").map(str::trim).collect::<Vec<_>>();
 
-    println!("BLOCKS: {:?}", blocks);
     let numbers = blocks
         .first()
         .ok_or_else(|| anyhow!("No bingo numbers found."))?
@@ -61,21 +77,18 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
         .filter_map(Result::ok)
         .collect::<Vec<_>>();
 
-    println!("NUMBERS: {:?}", numbers);
-
     let boards = blocks
         .iter()
         .skip(1)
         .map(|&line| Board::try_from(line))
         .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
-    println!("BOARDS: {:?}", boards);
-
     Ok(BingoSubsystem::new(numbers, boards))
 }
 
 fn main() -> anyhow::Result<()> {
-    println!("Hello, world!");
+    let system = parse_input(include_str!("input.txt"))?;
+    let (board, numbers) = system.find_board().ok_or(anyhow!("No winning board found."))?;
 
     Ok(())
 }
