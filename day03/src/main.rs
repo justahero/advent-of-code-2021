@@ -68,8 +68,7 @@ impl BinaryList {
             return binaries[0].0;
         }
 
-        let (zeros, ones): (Vec<Binary>, Vec<Binary>) =
-            binaries.iter().partition(|&bin| bin.is_bit_zero(position));
+        let (zeros, ones) = Self::group_binaries(&binaries, position);
 
         Self::find_rating(position - 1, &cmp_fn(zeros, ones), cmp_fn)
     }
@@ -96,7 +95,7 @@ impl BinaryList {
         let mut result = Vec::new();
 
         for pos in (0..self.count).rev() {
-            let (zeros, ones) = self.group_binaries(pos);
+            let (zeros, ones) = Self::group_binaries(&self.binaries, pos);
             result.push((zeros.len(), ones.len()));
         }
 
@@ -105,10 +104,10 @@ impl BinaryList {
 
     /// Group binaries by ones & zeros at given position.
     /// Returns tuple of (zeros, ones)
-    fn group_binaries(&self, position: usize) -> (Vec<Binary>, Vec<Binary>) {
-        self.binaries
+    fn group_binaries(binaries: &[Binary], position: usize) -> (Vec<Binary>, Vec<Binary>) {
+        binaries
             .iter()
-            .partition(|&bin| bin.0 & 1_u32.shl(position) == 0)
+            .partition(|&bin| bin.is_bit_zero(position))
     }
 }
 
