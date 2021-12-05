@@ -132,6 +132,25 @@ impl BingoSubsystem {
 
         None
     }
+
+    /// Let the squid win, find the board that wins last
+    pub fn play_last(&self) -> Option<(u32, Vec<u32>)> {
+        let mut boards = self.boards.clone();
+
+        for number in self.numbers.clone() {
+            for board in boards.iter_mut() {
+                board.mark(number);
+            }
+
+            if boards.len() == 1 {
+                return Some((number, boards[0].unmarked_fields()));
+            }
+
+            boards.retain(|board| board.is_marked().is_none());
+        }
+
+        None
+    }
 }
 
 /// Parses the input, the format is structured as follows
@@ -162,8 +181,15 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
 
 fn main() -> anyhow::Result<()> {
     let mut system = parse_input(include_str!("input.txt"))?;
-    let (number, unmarked_fields) = system.play().ok_or(anyhow!("No winning board found."))?;
 
+    let (number, unmarked_fields) = system.play().ok_or(anyhow!("No winning board found."))?;
+    let result = number * unmarked_fields.iter().sum::<u32>();
+    dbg!(result);
+
+    // let squid win
+    let (number, unmarked_fields) = system
+        .play_last()
+        .ok_or(anyhow!("No winning board found."))?;
     let result = number * unmarked_fields.iter().sum::<u32>();
     dbg!(result);
 
@@ -216,8 +242,21 @@ mod tests {
         let result = bingo.play();
         assert!(result.is_some());
         let (number, unmarked_fields) = result.expect("Failed to get board.");
+        let sum = unmarked_fields.iter().sum::<u32>();
         assert_eq!(24, number);
-        assert_eq!(vec![10, 16, 15, 19, 18, 8, 26, 20, 22, 13, 6, 12, 3], unmarked_fields);
-        assert_eq!(4512, 24 * unmarked_fields.iter().sum::<u32>());
+        assert_eq!(188, sum);
+    }
+
+    /// The 2nd board wins
+    #[test]
+    fn play_for_squid_to_win() {
+        let bingo = parse_input(INPUT).expect("Failed to parse input.");
+
+        let result = bingo.play_last();
+        assert!(result.is_some());
+        let (number, unmarked_fields) = result.expect("Failed to get board.");
+        let sum = unmarked_fields.iter().sum::<u32>();
+        assert_eq!(13, number);
+        assert_eq!(148, sum);
     }
 }
