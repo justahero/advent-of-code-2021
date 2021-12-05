@@ -87,17 +87,6 @@ impl Iterator for LineIterator {
     }
 }
 
-#[derive(Debug)]
-struct NoneIterator;
-
-impl Iterator for NoneIterator {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        None
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Point {
     pub x: i32,
