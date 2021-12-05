@@ -1,50 +1,85 @@
 use anyhow::anyhow;
 
 #[derive(Debug, Clone)]
+struct Value(u32, bool);
+
+impl Value {
+    pub fn new(v: u32) -> Self {
+        Value(v, false)
+    }
+
+    /// Mark the field value as drawn
+    pub fn mark(&mut self) {
+        self.1 = true;
+    }
+
+    /// The value
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+
+    /// Returns true if value is marked
+    pub fn marked(&self) -> bool {
+        self.1
+    }
+}
+
+#[derive(Debug, Clone)]
 struct Board {
-    pub fields: Vec<u32>,
+    pub fields: Vec<Value>,
 }
 
 impl Board {
     const SIDE: usize = 5;
 
     pub fn new(fields: Vec<u32>) -> Self {
+        let fields = fields.into_iter().map(Value::new).collect::<Vec<_>>();
         Self { fields }
     }
 
     /// Check the board has a row / column of complete numbers
-    pub fn is_marked(&self, numbers: &[u32]) -> Option<Vec<u32>> {
+    pub fn is_marked(&self) -> Option<Vec<u32>> {
         for y in 0..Self::SIDE {
-            let row = self.row(y);
-            if row.iter().all(|number| numbers.contains(&number)) {
+            if let Some(row) = self.scan_row(y) {
                 return Some(row);
             }
         }
         for x in 0..Self::SIDE {
-            let col = self.col(x);
-            if col.iter().all(|number| numbers.contains(&number)) {
+            if let Some(col) = self.scan_col(x) {
                 return Some(col);
             }
         }
         None
     }
 
-    pub fn row(&self, row: usize) -> Vec<u32> {
-        self.fields
-            .iter()
-            .skip(Self::SIDE * row)
-            .take(Self::SIDE)
-            .map(|&val| val)
-            .collect()
+    pub fn mark(&mut self, number: u32) -> bool {
+        if let Some(value) = self.fields.iter_mut().find(|value| value.value() == number) {
+            value.mark();
+            return true;
+        }
+        false
     }
 
-    pub fn col(&self, col: usize) -> Vec<u32> {
-        self.fields
-            .iter()
-            .skip(col)
-            .step_by(Self::SIDE)
-            .map(|&val| val)
-            .collect()
+    /// Scans the given row and returns it when all fields were marked
+    pub fn scan_row(&self, row: usize) -> Option<Vec<u32>> {
+        let fields = self.fields.iter().skip(Self::SIDE * row).take(Self::SIDE);
+
+        if fields.clone().all(Value::marked) {
+            return Some(fields.map(Value::value).collect());
+        }
+
+        None
+    }
+
+    /// Scans the given col and returns it when all fields were marked
+    pub fn scan_col(&self, col: usize) -> Option<Vec<u32>> {
+        let fields = self.fields.iter().skip(col).step_by(Self::SIDE);
+
+        if fields.clone().all(Value::marked) {
+            return Some(fields.map(Value::value).collect());
+        }
+
+        None
     }
 }
 
@@ -64,6 +99,7 @@ impl TryFrom<&str> for Board {
     }
 }
 
+/// The infamous Submarine BingoSubsystem
 #[derive(Debug)]
 struct BingoSubsystem {
     pub numbers: Vec<u32>,
@@ -76,15 +112,13 @@ impl BingoSubsystem {
     }
 
     /// Iterate over all Bingo numbers and check that there is one board that wins
-    pub fn find_board(&self) -> Option<(Board, Vec<u32>)> {
-        let mut numbers = Vec::new();
-
+    pub fn play(&mut self) -> Option<(u32, Board, Vec<u32>)> {
         for number in self.numbers.clone() {
-            numbers.push(number);
-
-            for board in &self.boards {
-                if let Some(winners) = board.is_marked(&numbers) {
-                    return Some((board.clone(), winners));
+            for board in self.boards.iter_mut() {
+                if board.mark(number) {
+                    if let Some(fields) = board.is_marked() {
+                        return Some((number, board.clone(), fields));
+                    }
                 }
             }
         }
@@ -104,7 +138,7 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
     let numbers = blocks
         .first()
         .ok_or_else(|| anyhow!("No bingo numbers found."))?
-        .split(",")
+        .split(',')
         .map(str::trim)
         .map(|value| value.parse::<u32>())
         .filter_map(Result::ok)
@@ -120,9 +154,9 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let system = parse_input(include_str!("input.txt"))?;
-    let (_board, numbers) = system
-        .find_board()
+    let mut system = parse_input(include_str!("input.txt"))?;
+    let (_number, _board, _numbers) = system
+        .play()
         .ok_or(anyhow!("No winning board found."))?;
 
     Ok(())
@@ -168,32 +202,13 @@ mod tests {
     }
 
     #[test]
-    fn test_board_rows_and_cols() {
-        let bingo = parse_input(INPUT).unwrap();
-        let board = &bingo.boards[0];
-
-        // rows
-        assert_eq!(vec![22, 13, 17, 11, 0], board.row(0));
-        assert_eq!(vec![8, 2, 23, 4, 24], board.row(1));
-        assert_eq!(vec![21, 9, 14, 16, 7], board.row(2));
-        assert_eq!(vec![6, 10, 3, 18, 5], board.row(3));
-        assert_eq!(vec![1, 12, 20, 15, 19], board.row(4));
-
-        // cols
-        assert_eq!(vec![22, 8, 21, 6, 1], board.col(0));
-        assert_eq!(vec![13, 2, 9, 10, 12], board.col(1));
-        assert_eq!(vec![17, 23, 14, 3, 20], board.col(2));
-        assert_eq!(vec![11, 4, 16, 18, 15], board.col(3));
-        assert_eq!(vec![0, 24, 7, 5, 19], board.col(4));
-    }
-
-    #[test]
     fn find_winner_board() {
-        let bingo = parse_input(INPUT).expect("Failed to parse input.");
+        let mut bingo = parse_input(INPUT).expect("Failed to parse input.");
 
-        let result = bingo.find_board();
+        let result = bingo.play();
         assert!(result.is_some());
-        let (_board, numbers) = result.expect("Failed to get board.");
-        assert_eq!(vec![14, 21, 17, 24, 4], numbers);
+        let (number, _board, fields) = result.expect("Failed to get board.");
+        assert_eq!(24, number);
+        assert_eq!(vec![14, 21, 17, 24, 4], fields);
     }
 }
