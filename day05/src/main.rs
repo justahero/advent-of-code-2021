@@ -1,92 +1,6 @@
-use std::collections::HashMap;
+use std::{cmp::max, collections::HashMap};
 
 use itertools::Itertools;
-
-#[derive(Debug, Clone, Copy)]
-enum LineDirection {
-    Straight,
-    Full,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct LineSegment {
-    pub start: Point,
-    pub end: Point,
-}
-
-impl LineSegment {
-    pub fn new(start: Point, end: Point) -> Self {
-        Self { start, end }
-    }
-
-    /// Returns an iterator if segment is a supported line, either horizontal / vertical
-    /// or additionally diagonal, otherwise returns an Iterator that returns `None` immediately
-    pub fn iter(&self, kind: LineDirection) -> impl Iterator<Item = Point> {
-        match kind {
-            LineDirection::Straight if self.is_straight() => LineIterator::new(self, false),
-            LineDirection::Full if self.is_straight() || self.is_diagonal() => {
-                LineIterator::new(self, false)
-            }
-            _ => LineIterator::new(self, true),
-        }
-    }
-
-    fn is_straight(&self) -> bool {
-        self.start.y == self.end.y || self.start.x == self.end.x
-    }
-
-    fn is_diagonal(&self) -> bool {
-        (self.start.x - self.end.x).abs() == (self.start.y - self.end.y).abs()
-    }
-}
-
-/// A straigh line iterator
-#[derive(Debug)]
-struct LineIterator {
-    pub segment: LineSegment,
-    pub stepx: i32,
-    pub stepy: i32,
-    pub done: bool,
-}
-
-impl LineIterator {
-    /// Creates a new iterator over given line segment, `done` marks the iterator already consumed.
-    pub fn new(segment: &LineSegment, done: bool) -> Self {
-        let stepx = (segment.end.x - segment.start.x).signum();
-        let stepy = (segment.end.y - segment.start.y).signum();
-
-        Self {
-            segment: segment.clone(),
-            stepx,
-            stepy,
-            done,
-        }
-    }
-}
-
-impl Iterator for LineIterator {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if !self.done {
-            if self.segment.start == self.segment.end {
-                self.done = true;
-            }
-
-            // get current start
-            let start = self.segment.start.clone();
-
-            // calculate next start point and set in line segment
-            let LineSegment { start: s, .. } = &self.segment;
-            let next_start = Point::new(s.x + self.stepx, s.y + self.stepy);
-            self.segment.start = next_start;
-
-            Some(start)
-        } else {
-            None
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Point {
@@ -112,24 +26,62 @@ impl From<&str> for Point {
     }
 }
 
-struct DepthMap;
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum LineDirection {
+    Straight,
+    Full,
+}
 
-impl DepthMap {
-    pub fn with_lines(segments: &[LineSegment], kind: LineDirection) -> Vec<Point> {
-        let mut map = HashMap::new();
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LineSegment {
+    pub start: Point,
+    pub end: Point,
+}
 
-        for segment in segments.iter() {
-            for p in segment.iter(kind).collect::<Vec<_>>() {
-                *map.entry(p).or_insert(0) += 1;
-            }
-        }
-
-        map.iter()
-            .filter(|(_, &count)| count >= 2)
-            .map(|(p, _)| p.clone())
-            .sorted()
-            .collect_vec()
+impl LineSegment {
+    pub fn new(start: Point, end: Point) -> Self {
+        Self { start, end }
     }
+
+    pub fn points(&self, kind: LineDirection) -> Vec<Point> {
+        if self.is_straight() || (kind == LineDirection::Full && self.is_diagonal()) {
+            let LineSegment { start, end } = self;
+            let stepx = (end.x - start.x).signum();
+            let stepy = (end.y - start.y).signum();
+
+            let count = max((start.x - end.x).abs(), (start.y - end.y).abs());
+            (0..=count)
+                .into_iter()
+                .map(|n| Point::new(start.x + n * stepx, start.y + n * stepy))
+                .collect_vec()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn is_straight(&self) -> bool {
+        self.start.y == self.end.y || self.start.x == self.end.x
+    }
+
+    fn is_diagonal(&self) -> bool {
+        (self.start.x - self.end.x).abs() == (self.start.y - self.end.y).abs()
+    }
+}
+
+fn find_depths(segments: &[LineSegment], kind: LineDirection) -> Vec<Point> {
+    let mut map = HashMap::new();
+
+    for segment in segments.iter() {
+        for p in segment.points(kind) {
+            *map.entry(p).or_insert(0) += 1;
+        }
+    }
+
+    map.iter()
+        .filter(|(_, &count)| count >= 2)
+        .map(|(p, _)| p.clone())
+        .sorted()
+        .collect_vec()
 }
 
 fn parse_input(input: &str) -> Vec<LineSegment> {
@@ -150,16 +102,16 @@ fn parse_input(input: &str) -> Vec<LineSegment> {
 
 fn main() {
     let points = parse_input(include_str!("input.txt"));
-    let depths = DepthMap::with_lines(&points, LineDirection::Straight);
+    let depths = find_depths(&points, LineDirection::Straight);
     dbg!(depths.len());
 
-    let depths = DepthMap::with_lines(&points, LineDirection::Full);
+    let depths = find_depths(&points, LineDirection::Full);
     dbg!(depths.len());
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, DepthMap, LineDirection, LineSegment, Point};
+    use crate::{parse_input, LineDirection, LineSegment, Point, find_depths};
 
     const INPUT: &str = r#"
         0,9 -> 5,9
@@ -179,26 +131,24 @@ mod tests {
         let horizontal = LineSegment::new(Point::new(3, 0), Point::new(1, 0));
         assert_eq!(
             vec![Point::new(3, 0), Point::new(2, 0), Point::new(1, 0)],
-            horizontal
-                .iter(LineDirection::Straight)
-                .collect::<Vec<Point>>(),
+            horizontal.points(LineDirection::Straight),
         );
 
         let diagonal = LineSegment::new(Point::new(4, 2), Point::new(2, 4));
         assert_eq!(
             Vec::<Point>::new(),
-            diagonal
-                .iter(LineDirection::Straight)
-                .collect::<Vec<Point>>(),
+            diagonal.points(LineDirection::Straight),
         );
     }
 
     #[test]
     fn test_diagonal_line() {
-        let iter = LineSegment::new(Point::new(4, 2), Point::new(2, 4)).iter(LineDirection::Full);
+        let points =
+            LineSegment::new(Point::new(4, 2), Point::new(2, 4)).points(LineDirection::Full);
+
         assert_eq!(
             vec![Point::new(4, 2), Point::new(3, 3), Point::new(2, 4)],
-            iter.collect::<Vec<Point>>(),
+            points,
         );
     }
 
@@ -225,7 +175,7 @@ mod tests {
     #[test]
     fn find_depths_with_straight_lines() {
         let points = parse_input(INPUT);
-        let depths = DepthMap::with_lines(&points, LineDirection::Straight);
+        let depths = find_depths(&points, LineDirection::Straight);
 
         assert_eq!(
             vec![
@@ -243,7 +193,7 @@ mod tests {
     #[test]
     fn find_depths_with_all_lines() {
         let points = parse_input(INPUT);
-        let depths = DepthMap::with_lines(&points, LineDirection::Full);
+        let depths = find_depths(&points, LineDirection::Full);
 
         assert_eq!(12, depths.len());
     }
