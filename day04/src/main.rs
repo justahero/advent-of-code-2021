@@ -149,7 +149,7 @@ impl BingoSubsystem {
 
     /// Iterate over all Bingo numbers and check that there is one board that wins
     pub fn play(&mut self) -> Option<(u32, Vec<u32>)> {
-        for number in self.numbers.clone() {
+        for &number in self.numbers.iter() {
             for board in self.boards.iter_mut() {
                 if board.mark(number) && board.is_marked().is_some() {
                     return Some((number, board.unmarked_fields()));
@@ -164,7 +164,7 @@ impl BingoSubsystem {
     pub fn play_last(&self) -> Option<(u32, Vec<u32>)> {
         let mut boards = self.boards.clone();
 
-        for number in self.numbers.clone() {
+        for &number in self.numbers.iter() {
             for board in boards.iter_mut() {
                 board.mark(number);
             }
