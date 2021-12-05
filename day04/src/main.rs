@@ -37,6 +37,15 @@ impl Board {
         Self { fields }
     }
 
+    /// Returns all unmarked numbers
+    pub fn unmarked_fields(&self) -> Vec<u32> {
+        self.fields
+            .iter()
+            .filter(|&v| !v.marked())
+            .map(Value::value)
+            .collect()
+    }
+
     /// Check the board has a row / column of complete numbers
     pub fn is_marked(&self) -> Option<Vec<u32>> {
         for y in 0..Self::SIDE {
@@ -112,13 +121,11 @@ impl BingoSubsystem {
     }
 
     /// Iterate over all Bingo numbers and check that there is one board that wins
-    pub fn play(&mut self) -> Option<(u32, Board, Vec<u32>)> {
+    pub fn play(&mut self) -> Option<(u32, Vec<u32>)> {
         for number in self.numbers.clone() {
             for board in self.boards.iter_mut() {
-                if board.mark(number) {
-                    if let Some(fields) = board.is_marked() {
-                        return Some((number, board.clone(), fields));
-                    }
+                if board.mark(number) && board.is_marked().is_some() {
+                    return Some((number, board.unmarked_fields()));
                 }
             }
         }
@@ -155,9 +162,10 @@ fn parse_input(input: &str) -> anyhow::Result<BingoSubsystem> {
 
 fn main() -> anyhow::Result<()> {
     let mut system = parse_input(include_str!("input.txt"))?;
-    let (_number, _board, _numbers) = system
-        .play()
-        .ok_or(anyhow!("No winning board found."))?;
+    let (number, unmarked_fields) = system.play().ok_or(anyhow!("No winning board found."))?;
+
+    let result = number * unmarked_fields.iter().sum::<u32>();
+    dbg!(result);
 
     Ok(())
 }
@@ -207,8 +215,9 @@ mod tests {
 
         let result = bingo.play();
         assert!(result.is_some());
-        let (number, _board, fields) = result.expect("Failed to get board.");
+        let (number, unmarked_fields) = result.expect("Failed to get board.");
         assert_eq!(24, number);
-        assert_eq!(vec![14, 21, 17, 24, 4], fields);
+        assert_eq!(vec![10, 16, 15, 19, 18, 8, 26, 20, 22, 13, 6, 12, 3], unmarked_fields);
+        assert_eq!(4512, 24 * unmarked_fields.iter().sum::<u32>());
     }
 }
