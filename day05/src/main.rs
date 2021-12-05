@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::anyhow;
 use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum LineDirection {
     Straight,
     Full,
@@ -15,27 +15,18 @@ struct LineSegment {
     pub end: Point,
 }
 
-impl IntoIterator for LineSegment {
-    type Item = Point;
-    type IntoIter = LineIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        LineIterator::new(&self)
-    }
-}
-
 impl LineSegment {
     pub fn new(start: Point, end: Point) -> Self {
         Self { start, end }
     }
 
     /// Returns an iterator if segment is a supported line, either horizontal / vertical
-    /// or additionally diagonal
-    pub fn iter(&self, kind: &LineDirection) -> Option<impl Iterator<Item = Point>> {
+    /// or additionally diagonal, otherwise returns a None iterator
+    pub fn iter(&self, kind: LineDirection) -> impl Iterator<Item = Point> {
         match kind {
-            LineDirection::Straight if self.is_straight() => Some(LineIterator::new(self)),
-            LineDirection::Full if self.is_straight() || self.is_diagonal() => Some(LineIterator::new(self)),
-            _ => None,
+            LineDirection::Straight if self.is_straight() => LineIterator::new(self, false),
+            LineDirection::Full if self.is_straight() || self.is_diagonal() => LineIterator::new(self, false),
+            _ => LineIterator::new(self, true),
         }
     }
 
@@ -54,11 +45,12 @@ struct LineIterator {
     pub segment: LineSegment,
     pub stepx: i32,
     pub stepy: i32,
-    pub index: u32,
+    pub done: bool,
 }
 
 impl LineIterator {
-    pub fn new(segment: &LineSegment) -> Self {
+    /// Creates a new iterator over given line segment, `done` marks the iterator already consumed.
+    pub fn new(segment: &LineSegment, done: bool) -> Self {
         let stepx = (segment.end.x - segment.start.x).signum();
         let stepy = (segment.end.y - segment.start.y).signum();
 
@@ -66,7 +58,7 @@ impl LineIterator {
             segment: segment.clone(),
             stepx,
             stepy,
-            index: 0,
+            done,
         }
     }
 }
@@ -75,20 +67,33 @@ impl Iterator for LineIterator {
     type Item = Point;
 
     fn next(&mut self) -> Option<Self::Item> {
-        println!("LINE_ITERATOR NEXT: {:?}", self);
-        /*
-        if self.segment.is_line(&self.direction) {
-            println!("HELLO?");
-            let point = self.segment.start.clone();
-
-            let next_start = self.segment.step();
-            if let Some(start) = next_start {
-                self.segment.start = start;
+        if !self.done {
+            if self.segment.start == self.segment.end {
+                self.done = true;
             }
 
-            return Some(point);
+            // get current start
+            let start = self.segment.start.clone();
+
+            // calculate next start point and set in line segment
+            let LineSegment { start: s, .. } = &self.segment;
+            let next_start = Point::new(s.x + self.stepx, s.y + self.stepy);
+            self.segment.start = next_start;
+
+            Some(start)
+        } else {
+            None
         }
-        */
+    }
+}
+
+#[derive(Debug)]
+struct NoneIterator;
+
+impl Iterator for NoneIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
         None
     }
 }
@@ -129,7 +134,7 @@ struct DepthMap {
 }
 
 impl DepthMap {
-    pub fn with_lines(segments: &Vec<LineSegment>, kind: &LineDirection) -> Self {
+    pub fn with_lines(segments: &[LineSegment], kind: LineDirection) -> Self {
         let mut depths = Vec::new();
 
         for segment in segments.iter() {
@@ -139,10 +144,6 @@ impl DepthMap {
         }
 
         Self { depths }
-    }
-
-    pub fn with_all_lines(segments: &Vec<LineSegment>) -> Self {
-        Self::with_lines(segments, &LineDirection::Full)
     }
 
     /// Returns all points where the depth is at least 2
@@ -168,7 +169,7 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<LineSegment>> {
         .map(|line| {
             line.split(" -> ")
                 .map(str::trim)
-                .map(|v| Point::try_from(v))
+                .map(Point::try_from)
                 .collect::<Result<Vec<Point>, anyhow::Error>>()
         })
         .collect::<Result<Vec<Vec<Point>>, anyhow::Error>>()?;
@@ -183,7 +184,11 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<LineSegment>> {
 
 fn main() -> anyhow::Result<()> {
     let points = parse_input(include_str!("input.txt"))?;
-    let depth_map = DepthMap::with_straight_lines(&points);
+    let depth_map = DepthMap::with_lines(&points, LineDirection::Straight);
+    let depths = depth_map.find_depths();
+    dbg!(depths.len());
+
+    let depth_map = DepthMap::with_lines(&points, LineDirection::Full);
     let depths = depth_map.find_depths();
     dbg!(depths.len());
 
@@ -192,7 +197,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, DepthMap, LineSegment, Point};
+    use crate::{parse_input, DepthMap, LineSegment, Point, LineDirection};
 
     const INPUT: &str = r#"
         0,9 -> 5,9
@@ -208,17 +213,23 @@ mod tests {
     "#;
 
     #[test]
-    fn test_point_iter_horizontal() {
-        let iter = LineSegment::new(Point::new(3, 0), Point::new(1, 0)).line_iter();
+    fn test_straight_lines() {
+        let horizontal = LineSegment::new(Point::new(3, 0), Point::new(1, 0));
         assert_eq!(
             vec![Point::new(3, 0), Point::new(2, 0), Point::new(1, 0)],
-            iter.collect::<Vec<Point>>(),
+            horizontal.iter(LineDirection::Straight).collect::<Vec<Point>>(),
+        );
+
+        let diagonal = LineSegment::new(Point::new(4, 2), Point::new(2, 4));
+        assert_eq!(
+            Vec::<Point>::new(),
+            diagonal.iter(LineDirection::Straight).collect::<Vec<Point>>(),
         );
     }
 
     #[test]
-    fn test_point_iter_diagonally() {
-        let iter = LineSegment::new(Point::new(4, 2), Point::new(2, 4)).full_iter();
+    fn test_diagonal_line() {
+        let iter = LineSegment::new(Point::new(4, 2), Point::new(2, 4)).iter(LineDirection::Full);
         assert_eq!(
             vec![Point::new(4, 2), Point::new(3, 3), Point::new(2, 4)],
             iter.collect::<Vec<Point>>(),
@@ -248,7 +259,7 @@ mod tests {
     #[test]
     fn find_depths_with_straight_lines() {
         let points = parse_input(INPUT).expect("Failed to parse input");
-        let depth_map = DepthMap::with_straight_lines(&points);
+        let depth_map = DepthMap::with_lines(&points, LineDirection::Straight);
 
         assert_eq!(26, depth_map.depths.len());
         assert_eq!(
@@ -267,7 +278,7 @@ mod tests {
     #[test]
     fn find_depths_with_all_lines() {
         let points = parse_input(INPUT).expect("Failed to parse input");
-        let depth_map = DepthMap::with_all_lines(&points);
+        let depth_map = DepthMap::with_lines(&points, LineDirection::Full);
 
         assert_eq!(12, depth_map.find_depths().len());
     }
