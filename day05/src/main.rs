@@ -21,7 +21,7 @@ impl LineSegment {
     }
 
     /// Returns an iterator if segment is a supported line, either horizontal / vertical
-    /// or additionally diagonal, otherwise returns a None iterator
+    /// or additionally diagonal, otherwise returns an Iterator that returns `None` immediately
     pub fn iter(&self, kind: LineDirection) -> impl Iterator<Item = Point> {
         match kind {
             LineDirection::Straight if self.is_straight() => LineIterator::new(self, false),
