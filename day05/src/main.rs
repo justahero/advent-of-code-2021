@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::anyhow;
 use itertools::Itertools;
 
 #[derive(Debug, Clone, Copy)]
@@ -25,7 +24,9 @@ impl LineSegment {
     pub fn iter(&self, kind: LineDirection) -> impl Iterator<Item = Point> {
         match kind {
             LineDirection::Straight if self.is_straight() => LineIterator::new(self, false),
-            LineDirection::Full if self.is_straight() || self.is_diagonal() => LineIterator::new(self, false),
+            LineDirection::Full if self.is_straight() || self.is_diagonal() => {
+                LineIterator::new(self, false)
+            }
             _ => LineIterator::new(self, true),
         }
     }
@@ -99,94 +100,66 @@ impl Point {
     }
 }
 
-impl TryFrom<&str> for Point {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let values = value
+impl From<&str> for Point {
+    fn from(value: &str) -> Self {
+        let (x, y) = value
             .split(',')
             .map(str::trim)
-            .map(|val| {
-                val.parse::<i32>()
-                    .map_err(|_| anyhow!("Failed to parse value."))
-            })
-            .collect::<Result<Vec<i32>, Self::Error>>()?;
-        if values.len() != 2 {
-            return Err(anyhow!("Failed to parse tuple."));
-        }
-        Ok(Point::new(values[0], values[1]))
+            .filter_map(|val| val.parse::<i32>().ok())
+            .collect_tuple::<(i32, i32)>()
+            .expect("Failed to parse Point.");
+        Self::new(x, y)
     }
 }
 
-struct DepthMap {
-    pub depths: Vec<Point>,
-}
+struct DepthMap;
 
 impl DepthMap {
-    pub fn with_lines(segments: &[LineSegment], kind: LineDirection) -> Self {
-        let mut depths = Vec::new();
+    pub fn with_lines(segments: &[LineSegment], kind: LineDirection) -> Vec<Point> {
+        let mut map = HashMap::new();
 
         for segment in segments.iter() {
             for p in segment.iter(kind).collect::<Vec<_>>() {
-                depths.push(p);
+                *map.entry(p).or_insert(0) += 1;
             }
-        }
-
-        Self { depths }
-    }
-
-    /// Returns all points where the depth is at least 2
-    pub fn find_depths(&self) -> Vec<Point> {
-        let mut map = HashMap::new();
-        for p in self.depths.iter() {
-            *map.entry(p).or_insert(0) += 1;
         }
 
         map.iter()
             .filter(|(_, &count)| count >= 2)
-            .map(|(&p, _)| p.clone())
+            .map(|(p, _)| p.clone())
             .sorted()
             .collect_vec()
     }
 }
 
-fn parse_input(input: &str) -> anyhow::Result<Vec<LineSegment>> {
-    let points = input
+fn parse_input(input: &str) -> Vec<LineSegment> {
+    input
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .map(|line| {
             line.split(" -> ")
-                .map(str::trim)
-                .map(Point::try_from)
-                .collect::<Result<Vec<Point>, anyhow::Error>>()
+                .map(|part| part.trim())
+                .map(|f| Point::from(f))
+                .collect_tuple::<(Point, Point)>()
+                .unwrap()
         })
-        .collect::<Result<Vec<Vec<Point>>, anyhow::Error>>()?;
-
-    let segments = points
-        .iter()
-        .map(|p| LineSegment::new(p[0].clone(), p[1].clone()))
-        .collect_vec();
-
-    Ok(segments)
+        .map(|(start, end)| LineSegment::new(start, end))
+        .collect_vec()
 }
 
-fn main() -> anyhow::Result<()> {
-    let points = parse_input(include_str!("input.txt"))?;
-    let depth_map = DepthMap::with_lines(&points, LineDirection::Straight);
-    let depths = depth_map.find_depths();
+fn main() {
+    let points = parse_input(include_str!("input.txt"));
+    let depths = DepthMap::with_lines(&points, LineDirection::Straight);
     dbg!(depths.len());
 
-    let depth_map = DepthMap::with_lines(&points, LineDirection::Full);
-    let depths = depth_map.find_depths();
+    let depths = DepthMap::with_lines(&points, LineDirection::Full);
     dbg!(depths.len());
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, DepthMap, LineSegment, Point, LineDirection};
+    use crate::{parse_input, DepthMap, LineDirection, LineSegment, Point};
 
     const INPUT: &str = r#"
         0,9 -> 5,9
@@ -206,13 +179,17 @@ mod tests {
         let horizontal = LineSegment::new(Point::new(3, 0), Point::new(1, 0));
         assert_eq!(
             vec![Point::new(3, 0), Point::new(2, 0), Point::new(1, 0)],
-            horizontal.iter(LineDirection::Straight).collect::<Vec<Point>>(),
+            horizontal
+                .iter(LineDirection::Straight)
+                .collect::<Vec<Point>>(),
         );
 
         let diagonal = LineSegment::new(Point::new(4, 2), Point::new(2, 4));
         assert_eq!(
             Vec::<Point>::new(),
-            diagonal.iter(LineDirection::Straight).collect::<Vec<Point>>(),
+            diagonal
+                .iter(LineDirection::Straight)
+                .collect::<Vec<Point>>(),
         );
     }
 
@@ -227,7 +204,7 @@ mod tests {
 
     #[test]
     fn parses_input() {
-        let points = parse_input(INPUT).expect("Failed to parse input");
+        let points = parse_input(INPUT);
         assert_eq!(
             vec![
                 LineSegment::new(Point::new(0, 9), Point::new(5, 9)),
@@ -247,10 +224,9 @@ mod tests {
 
     #[test]
     fn find_depths_with_straight_lines() {
-        let points = parse_input(INPUT).expect("Failed to parse input");
-        let depth_map = DepthMap::with_lines(&points, LineDirection::Straight);
+        let points = parse_input(INPUT);
+        let depths = DepthMap::with_lines(&points, LineDirection::Straight);
 
-        assert_eq!(26, depth_map.depths.len());
         assert_eq!(
             vec![
                 Point::new(0, 9),
@@ -259,16 +235,16 @@ mod tests {
                 Point::new(3, 4),
                 Point::new(7, 4),
             ],
-            depth_map.find_depths(),
+            depths,
         );
     }
 
     /// 2nd part
     #[test]
     fn find_depths_with_all_lines() {
-        let points = parse_input(INPUT).expect("Failed to parse input");
-        let depth_map = DepthMap::with_lines(&points, LineDirection::Full);
+        let points = parse_input(INPUT);
+        let depths = DepthMap::with_lines(&points, LineDirection::Full);
 
-        assert_eq!(12, depth_map.find_depths().len());
+        assert_eq!(12, depths.len());
     }
 }
