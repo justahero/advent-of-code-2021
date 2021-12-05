@@ -24,9 +24,36 @@ impl Value {
     }
 }
 
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self.1 {
+            true => format!("*{:2}", self.0),
+            false => format!("{:3}", self.0),
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Board {
     pub fields: Vec<Value>,
+}
+
+impl std::fmt::Display for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in 0..Self::SIDE {
+            let s = self
+                .fields
+                .iter()
+                .skip(y * Self::SIDE)
+                .take(Self::SIDE)
+                .map(Value::to_string)
+                .collect::<Vec<_>>();
+
+            writeln!(f, "{}", s.join(", "))?;
+        }
+        write!(f, "")
+    }
 }
 
 impl Board {
@@ -142,7 +169,7 @@ impl BingoSubsystem {
                 board.mark(number);
             }
 
-            if boards.len() == 1 {
+            if boards.len() == 1 && boards[0].is_marked().is_some() {
                 return Some((number, boards[0].unmarked_fields()));
             }
 
