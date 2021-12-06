@@ -19,10 +19,8 @@ impl Population {
     pub fn advance(&self, days: u64) -> u64 {
         let mut buckets = self.list.clone();
         for _ in 0..days {
-            let zeros = buckets[0];
             buckets.rotate_left(1);
-            buckets[6] += zeros;
-            buckets[8] = zeros;
+            buckets[6] += buckets[8];
         }
         buckets.iter().sum()
     }
