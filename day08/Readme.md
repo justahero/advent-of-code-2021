@@ -92,4 +92,16 @@ leads to solution:
 How is this determined?
 
 * 2 bits => digit 1
+* 3 bits => digit 7
 * 4 bits => digit 4
+* 5 bits => digits 2, 3, 5
+* 6 bits => digits 0, 6, 9
+* 7 bits => digit 8
+
+Some rules to determine specific segments:
+
+* 7 - 1 => segment 0
+* 1 is in 0, 3, 4, 7, 8, 9
+* 1 is completely in 3
+* 3 is completely in 9
+* 0 can be deduced by 

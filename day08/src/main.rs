@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::{collections::HashMap, fmt::{Debug, Display}, ops::Shl};
+use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitOrAssign, Shl}};
 
 use itertools::Itertools;
 
@@ -24,6 +24,11 @@ impl Digit {
         self.0 |= 1_u16.shl(pos);
     }
 
+    pub fn unset(&mut self, pos: u8) {
+        assert!(pos < 7);
+        self.0 &= !1_u16.shl(pos);
+    }
+
     pub fn get(&self, pos: u16) -> bool {
         assert!(pos < 7);
         self.0 & 1_u16.shl(pos) > 0
@@ -33,6 +38,31 @@ impl Digit {
     pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
         (0..=6_u8)
             .filter(move |index| (self.0 & 1u16.shl(index) > 0))
+    }
+
+    #[inline(always)]
+    pub fn intersect(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.0 &= rhs.0;
+        lhs
+    }
+
+    pub fn union(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.0 |= rhs.0;
+        lhs
+    }
+
+    pub fn diff(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        rhs.iter().for_each(|pos| lhs.unset(pos));
+        lhs
+    }
+
+    pub fn xor(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.0 ^= rhs.0;
+        lhs
     }
 
     pub fn count_ones(&self) -> u32 {
@@ -52,13 +82,13 @@ impl From<&str> for Digit {
 
 impl Debug for Digit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:07b}", self.0)
+        write!(f, "{:#09b}", self.0)
     }
 }
 
 impl Display for Digit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:07b}", self.0)
+        write!(f, "{:#09b}", self.0)
     }
 }
 
@@ -104,38 +134,50 @@ impl DisplayLine {
     ///
     pub fn deduce_digits(&self) -> u32 {
         // let table = self.segments.iter().map(|digit| (digit.count_ones(), digit)).collect::<HashMap<_, Vec<_>>>();
-        let table = self.segments.iter().fold(HashMap::new(), |mut table, digit| {
+        let mut table = self.segments.iter().fold(HashMap::new(), |mut table, digit| {
             table.entry(digit.count_ones()).or_insert(Vec::new()).push(digit);
             table
         });
+        println!("TABLE: {:?}", table);
 
-        // [abcdefg, abcdefg, abcdefg, abcdefg, abcdefg, abcdefg, abcdefg]
-        // TODO deduct all digits from the buckets
-        // * digit `1` with two
-
-        // deduct all digits that in each "bucket" only a single bit is set afterwards, the final segment
-        let mut list = [
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-            Digit::all(),
-        ];
-
-        // iterate over all segments
-        /*
-        for (index, segment) in self.segments.iter().enumerate() {
-            println!("SEGMENT - {}: {:07b}", index, segment.0);
-            for bit in segment.iter() {
-                println!("  BIT: {}", bit);
-            }
+        let one = table[&2][0];
+        let four = table[&4][0];
+        let seven = table[&3][0];
+        let eight = table[&7][0];
+        let (index, &three) = table[&5].iter().find_position(|&&digit| Digit::intersect(one, digit).count_ones() == 2).unwrap();
+        if let Some(digits) = table.get_mut(&5) {
+            digits.remove(index);
         }
-        */
+        let (index, &nine) = table[&6].iter().find_position(|&&digit| Digit::xor(three, digit).count_ones() == 1).unwrap();
+        if let Some(digits) = table.get_mut(&6) {
+            digits.remove(index);
+        }
+        let (index, &six) = table[&6].iter().find_position(|&&digit| (Digit::intersect(one, &Digit::diff(eight, &digit))).count_ones() == 1).unwrap();
+        if let Some(digits) = table.get_mut(&6) {
+            digits.remove(index);
+        }
+        let zero = table[&6][0];
+
+        println!("ZERO: {}", zero);
+        println!("ONE: {}", one);
+        println!("THREE: {}", three);
+        println!("FOUR: {}", four);
+        println!("SIX: {}", six);
+        println!("SEVEN: {}", seven);
+        println!("EIGHT: {}", eight);
+        println!("NINE: {}", nine);
+
+        let segment = Digit::xor(three, nine);
+        println!("SEGMENT: {}", segment);
+
+        // rewiring table, key = real segment, value = found segment
+        let mut result: HashMap<u16, Digit> = HashMap::new();
+        result.insert(0, Digit::diff(seven, one));
+        result.insert(1, Digit::xor(three, nine));
+        result.insert(4, Digit::diff(eight, nine));
+        println!("RESULT: {:?}", result);
+        println!("TABLE: {:?}", table);
+
 
         let four_digits = 0_u32;
         four_digits
