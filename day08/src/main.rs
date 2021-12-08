@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitOrAssign, Shl}};
+use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitOrAssign, BitXor, Shl}};
 
 use itertools::Itertools;
 
@@ -65,8 +65,40 @@ impl Digit {
         lhs
     }
 
-    pub fn count_ones(&self) -> u32 {
+    pub fn count(&self) -> u32 {
         self.0.count_ones()
+    }
+}
+
+impl BitAnd for Digit {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self::intersect(&self, &rhs)
+    }
+}
+
+impl BitXor for Digit {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Digit(self.0 ^ rhs.0)
+    }
+}
+
+impl BitOr for Digit {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Digit(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::Sub for Digit {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::diff(&self, &rhs)
     }
 }
 
@@ -106,7 +138,7 @@ impl DisplayLine {
     pub fn count_easy_digits(&self) -> usize {
         self.digits
             .iter()
-            .filter(|&digit| [2, 3, 4, 7].contains(&digit.count_ones()))
+            .filter(|&digit| [2, 3, 4, 7].contains(&digit.count()))
             .count()
     }
 
@@ -135,24 +167,24 @@ impl DisplayLine {
     pub fn deduce_digits(&self) -> u32 {
         // let table = self.segments.iter().map(|digit| (digit.count_ones(), digit)).collect::<HashMap<_, Vec<_>>>();
         let mut table = self.segments.iter().fold(HashMap::new(), |mut table, digit| {
-            table.entry(digit.count_ones()).or_insert(Vec::new()).push(digit);
+            table.entry(digit.count()).or_insert(Vec::new()).push(digit.clone());
             table
         });
         println!("TABLE: {:?}", table);
 
-        let one = table[&2][0];
-        let four = table[&4][0];
-        let seven = table[&3][0];
-        let eight = table[&7][0];
-        let (index, &three) = table[&5].iter().find_position(|&&digit| Digit::intersect(one, digit).count_ones() == 2).unwrap();
+        let one = table.remove(&2).unwrap()[0];
+        let four = table.remove(&4).unwrap()[0];
+        let seven = table.remove(&3).unwrap()[0];
+        let eight = table.remove(&7).unwrap()[0];
+        let (index, &three) = table[&5].iter().find_position(|&&digit| (one & digit).count() == 2).unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
-        let (index, &nine) = table[&6].iter().find_position(|&&digit| Digit::xor(three, digit).count_ones() == 1).unwrap();
+        let (index, &nine) = table[&6].iter().find_position(|&&digit| (three ^ digit).count() == 1).unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
-        let (index, &six) = table[&6].iter().find_position(|&&digit| (Digit::intersect(one, &Digit::diff(eight, &digit))).count_ones() == 1).unwrap();
+        let (index, &six) = table[&6].iter().find_position(|&&digit| (one & (eight - digit)).count() == 1).unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
@@ -167,14 +199,14 @@ impl DisplayLine {
         println!("EIGHT: {}", eight);
         println!("NINE: {}", nine);
 
-        let segment = Digit::xor(three, nine);
+        let segment = three ^ nine;
         println!("SEGMENT: {}", segment);
 
         // rewiring table, key = real segment, value = found segment
         let mut result: HashMap<u16, Digit> = HashMap::new();
-        result.insert(0, Digit::diff(seven, one));
-        result.insert(1, Digit::xor(three, nine));
-        result.insert(4, Digit::diff(eight, nine));
+        result.insert(0, seven - one);
+        result.insert(1, three ^ nine);
+        result.insert(4, eight - nine);
         println!("RESULT: {:?}", result);
         println!("TABLE: {:?}", table);
 
