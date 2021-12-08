@@ -1,113 +1,32 @@
 use std::{
     collections::HashMap,
-    fmt::{Debug, Display},
-    ops::{BitAnd, BitOr, BitXor, Shl},
+    ops::Shl,
 };
 
 use itertools::Itertools;
 
-#[derive(PartialEq, Clone, Copy)]
-struct Digit(u16);
-
-impl Digit {
-    pub fn new(val: u16) -> Self {
-        Self(val)
-    }
-
-    pub fn empty() -> Self {
-        Self(0)
-    }
-
-    pub fn set(&mut self, pos: u16) {
-        assert!(pos < 7);
-        self.0 |= 1_u16.shl(pos);
-    }
-
-    pub fn unset(&mut self, pos: u8) {
-        assert!(pos < 7);
-        self.0 &= !1_u16.shl(pos);
-    }
-
-    // Returns an iterator over all positions with set bits
-    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
-        (0..=6_u8).filter(move |index| (self.0 & 1u16.shl(index) > 0))
-    }
-
-    #[inline(always)]
-    pub fn intersect(lhs: &Self, rhs: &Self) -> Self {
-        let mut lhs = lhs.clone();
-        lhs.0 &= rhs.0;
-        lhs
-    }
-
-    pub fn diff(lhs: &Self, rhs: &Self) -> Self {
-        let mut lhs = lhs.clone();
-        rhs.iter().for_each(|pos| lhs.unset(pos));
-        lhs
-    }
-
-    pub fn count(&self) -> u32 {
-        self.0.count_ones()
-    }
-}
-
-impl BitAnd for Digit {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self::intersect(&self, &rhs)
-    }
-}
-
-impl BitXor for Digit {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Digit(self.0 ^ rhs.0)
-    }
-}
-
-impl BitOr for Digit {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Digit(self.0 | rhs.0)
-    }
-}
-
-impl std::ops::Sub for Digit {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::diff(&self, &rhs)
-    }
-}
-
-/// Converst segments to a digit, e.g. `cf` -> 0b100100
-impl From<&str> for Digit {
-    fn from(val: &str) -> Self {
-        val.chars().fold(Digit::empty(), |mut digit, char| {
-            digit.set((char as u32 - 'a' as u32) as u16);
-            digit
-        })
-    }
-}
-
-impl Debug for Digit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#09b}", self.0)
-    }
-}
-
-impl Display for Digit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#09b}", self.0)
-    }
-}
-
 struct DisplayLine {
-    pub segments: Vec<Digit>,
-    pub digits: Vec<Digit>,
+    pub segments: Vec<u16>,
+    pub digits: Vec<u16>,
+}
+
+fn parse_binary(val: &str) -> u16 {
+    val.chars().fold(0_u16, |mut result, char| {
+        let pos = (char as u32 - 'a' as u32) as u16;
+        result |= 1_u16.shl(pos);
+        result
+    })
+}
+
+/// Calculates the difference in bits.
+fn diff(lhs: u16, rhs: u16) -> u16 {
+    let mut lhs = lhs.clone();
+    for bit_pos in 0..=6_u16 {
+        if rhs & 1_u16.shl(bit_pos) > 0 {
+            lhs &= !1_u16.shl(bit_pos);
+        }
+    }
+    lhs
 }
 
 impl DisplayLine {
@@ -115,7 +34,7 @@ impl DisplayLine {
     pub fn count_easy_digits(&self) -> usize {
         self.digits
             .iter()
-            .filter(|&digit| [2, 3, 4, 7].contains(&digit.count()))
+            .filter(|&digit| [2, 3, 4, 7].contains(&digit.count_ones()))
             .count()
     }
 
@@ -148,7 +67,7 @@ impl DisplayLine {
             .iter()
             .fold(HashMap::new(), |mut table, digit| {
                 table
-                    .entry(digit.count())
+                    .entry(digit.count_ones())
                     .or_insert(Vec::new())
                     .push(digit.clone());
                 table
@@ -160,21 +79,21 @@ impl DisplayLine {
         let eight = table.remove(&7).unwrap()[0];
         let (index, &three) = table[&5]
             .iter()
-            .find_position(|&&digit| (digit - seven).count() == 2)
+            .find_position(|&&digit| (diff(digit, seven)).count_ones() == 2)
             .unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
         let (index, &nine) = table[&6]
             .iter()
-            .find_position(|&&digit| (three ^ digit).count() == 1)
+            .find_position(|&&digit| (three ^ digit).count_ones() == 1)
             .unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
         let (index, &six) = table[&6]
             .iter()
-            .find_position(|&&digit| (one & (eight - digit)).count() == 1)
+            .find_position(|&&digit| (one & (diff(eight, digit))).count_ones() == 1)
             .unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
@@ -182,7 +101,7 @@ impl DisplayLine {
         let zero = table.remove(&6).unwrap()[0];
         let (index, &five) = table[&5]
             .iter()
-            .find_position(|&&digit| (six - digit).count() == 1)
+            .find_position(|&&digit| (six - digit).count_ones() == 1)
             .unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
@@ -209,8 +128,8 @@ impl DisplayLine {
 impl From<&str> for DisplayLine {
     fn from(line: &str) -> Self {
         let (segments, digits) = line.split_once('|').expect("Failed to split line");
-        let segments = segments.split_whitespace().map(Digit::from).collect_vec();
-        let digits = digits.split_whitespace().map(Digit::from).collect_vec();
+        let segments = segments.split_whitespace().map(parse_binary).collect_vec();
+        let digits = digits.split_whitespace().map(parse_binary).collect_vec();
         Self { segments, digits }
     }
 }
@@ -260,7 +179,7 @@ fn main() {
 mod tests {
     use itertools::Itertools;
 
-    use crate::{parse_input, Digit, DisplayLine};
+    use crate::{DisplayLine, parse_binary, parse_input};
 
     const INPUT: &str = r#"
         be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
@@ -277,8 +196,8 @@ mod tests {
 
     #[test]
     fn parses_digit_from_string() {
-        assert_eq!(Digit::new(0b10010), "be".into());
-        assert_eq!(Digit::new(0b1111111), "abcdefg".into());
+        assert_eq!(0b10010, parse_binary("be"));
+        assert_eq!(0b1111111, parse_binary("abcdefg"));
     }
 
     #[test]
@@ -287,16 +206,8 @@ mod tests {
         let input = &parse_input(input).lines[0];
         assert_eq!(
             vec![
-                Digit::new(0b0010010),
-                Digit::new(0b1111111),
-                Digit::new(0b1111110),
-                Digit::new(0b1111101),
-                Digit::new(0b1010110),
-                Digit::new(0b1111100),
-                Digit::new(0b1111011),
-                Digit::new(0b0111110),
-                Digit::new(0b0101111),
-                Digit::new(0b0011010),
+                0b0010010, 0b1111111, 0b1111110, 0b1111101, 0b1010110, 0b1111100, 0b1111011,
+                0b0111110, 0b0101111, 0b0011010,
             ],
             input.segments,
         );
