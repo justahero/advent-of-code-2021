@@ -144,7 +144,6 @@ impl DisplayLine {
             table.entry(digit.count()).or_insert(Vec::new()).push(digit.clone());
             table
         });
-        println!("TABLE: {:?}", table);
 
         let one = table.remove(&2).unwrap()[0];
         let four = table.remove(&4).unwrap()[0];
@@ -168,17 +167,6 @@ impl DisplayLine {
             digits.remove(index);
         }
         let two = table.remove(&5).unwrap()[0];
-
-        println!("ZERO: {}", zero);
-        println!("ONE: {}", one);
-        println!("TWO: {}", two);
-        println!("THREE: {}", three);
-        println!("FOUR: {}", four);
-        println!("FIVE: {}", five);
-        println!("SIX: {}", six);
-        println!("SEVEN: {}", seven);
-        println!("EIGHT: {}", eight);
-        println!("NINE: {}", nine);
 
         // hacky version to get final sum
         let list = vec![zero, one, two, three, four, five, six, seven, eight, nine];
