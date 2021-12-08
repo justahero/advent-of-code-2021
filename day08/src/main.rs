@@ -1,5 +1,4 @@
-use anyhow::anyhow;
-use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitOrAssign, BitXor, Shl}};
+use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitXor, Shl}};
 
 use itertools::Itertools;
 
@@ -15,10 +14,6 @@ impl Digit {
         Self(0)
     }
 
-    pub fn all() -> Self {
-        Self(0b1111111)
-    }
-
     pub fn set(&mut self, pos: u16) {
         assert!(pos < 7);
         self.0 |= 1_u16.shl(pos);
@@ -27,11 +22,6 @@ impl Digit {
     pub fn unset(&mut self, pos: u8) {
         assert!(pos < 7);
         self.0 &= !1_u16.shl(pos);
-    }
-
-    pub fn get(&self, pos: u16) -> bool {
-        assert!(pos < 7);
-        self.0 & 1_u16.shl(pos) > 0
     }
 
     // Returns an iterator over all positions with set bits
@@ -47,21 +37,9 @@ impl Digit {
         lhs
     }
 
-    pub fn union(lhs: &Self, rhs: &Self) -> Self {
-        let mut lhs = lhs.clone();
-        lhs.0 |= rhs.0;
-        lhs
-    }
-
     pub fn diff(lhs: &Self, rhs: &Self) -> Self {
         let mut lhs = lhs.clone();
         rhs.iter().for_each(|pos| lhs.unset(pos));
-        lhs
-    }
-
-    pub fn xor(lhs: &Self, rhs: &Self) -> Self {
-        let mut lhs = lhs.clone();
-        lhs.0 ^= rhs.0;
         lhs
     }
 
@@ -130,10 +108,6 @@ struct DisplayLine {
 }
 
 impl DisplayLine {
-    pub fn new(segments: Vec<Digit>, digits: Vec<Digit>) -> Self {
-        Self { segments, digits }
-    }
-
     /// Returns the easily detectable digits: 1, 4, 7 or 8
     pub fn count_easy_digits(&self) -> usize {
         self.digits
@@ -188,30 +162,45 @@ impl DisplayLine {
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
-        let zero = table[&6][0];
+        let zero = table.remove(&6).unwrap()[0];
+        let (index, &five) = table[&5].iter().find_position(|&&digit| (six - digit).count() == 1).unwrap();
+        if let Some(digits) = table.get_mut(&6) {
+            digits.remove(index);
+        }
+        let two = table.remove(&5).unwrap()[0];
 
         println!("ZERO: {}", zero);
         println!("ONE: {}", one);
+        println!("TWO: {}", two);
         println!("THREE: {}", three);
         println!("FOUR: {}", four);
+        println!("FIVE: {}", five);
         println!("SIX: {}", six);
         println!("SEVEN: {}", seven);
         println!("EIGHT: {}", eight);
         println!("NINE: {}", nine);
 
-        let segment = three ^ nine;
-        println!("SEGMENT: {}", segment);
-
         // rewiring table, key = real segment, value = found segment
         let mut result: HashMap<u16, Digit> = HashMap::new();
         result.insert(0, seven - one);
         result.insert(1, three ^ nine);
+        result.insert(2, eight - six);
+        result.insert(3, eight - zero);
         result.insert(4, eight - nine);
+        result.insert(5, (eight - six) ^ one);
+        result.insert(6,nine - (four | seven));
         println!("RESULT: {:?}", result);
-        println!("TABLE: {:?}", table);
 
+        for (_key, value) in &result {
+            assert!(value.count() == 1);
+        }
 
-        let four_digits = 0_u32;
+        let list = vec![zero, one, two, three, four, five, six, seven, eight, nine];
+        let four_digits = self.digits.iter().map(|digit| {
+            let (val, _) = list.iter().find_position(|&val| val == digit).unwrap();
+            val
+        }).map(|d| format!("{}", d)).join("").parse::<u32>().unwrap();
+
         four_digits
     }
 }
