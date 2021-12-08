@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::{fmt::Display, ops::Shl};
+use std::{collections::HashMap, fmt::Display, ops::Shl};
 
 use itertools::Itertools;
 
@@ -18,6 +18,11 @@ impl Digit {
     pub fn set(&mut self, pos: u16) {
         assert!(pos < 7);
         self.0 |= 1_u16.shl(pos);
+    }
+
+    pub fn get(&self, pos: u16) -> bool {
+        assert!(pos < 7);
+        self.0 & 1_u16.shl(pos) > 0
     }
 
     pub fn count_ones(&self) -> u32 {
@@ -52,6 +57,43 @@ impl DisplayLine {
             .filter(|&digit| [2, 3, 4, 7].contains(&digit.count_ones()))
             .count()
     }
+
+    /// Returns the four digit value of this display, deduced / analyzed by the given segments
+    /// Segments are analyzed as follows:
+    ///
+    /// ```
+    ///  0000
+    /// 1    2
+    /// 1    2
+    ///  3333
+    /// 4    5
+    /// 4    5
+    ///  6666
+    /// ```
+    ///
+    /// Analyzing number of occurences of segments in all digits
+    /// * `0` appears 8 times
+    /// * `1` appears 6 times
+    /// * `2` appears 8 times
+    /// * `3` appears 7 times
+    /// * `4` appears 4 times
+    /// * `5` appears 9 times
+    /// * `6` appears 7 times
+    ///
+    pub fn deduce_digits(&self) -> u32 {
+        // Table to rewire the given segments to the real segments
+        let _segment_table: HashMap<u16, u16> = HashMap::new();
+
+        // Order of all segments, not an optimal deduction, but easy to implement
+        let _x = (0..=6_u16).permutations(7).find(|list| {
+            // check given permutation matches exactly all numbers
+            println!("PERMUTATION: {:?}", list);
+            false
+        });
+
+        let four_digits = 0_u32;
+        four_digits
+    }
 }
 
 impl From<&str> for DisplayLine {
@@ -75,6 +117,10 @@ impl DisplayNotes {
     pub fn count_easy_digits(&self) -> usize {
         self.lines.iter().map(|line| line.count_easy_digits()).sum::<usize>()
     }
+
+    pub fn count_deduced_digits(&self) -> u32 {
+        self.lines.iter().map(|line| line.deduce_digits()).sum::<u32>()
+    }
 }
 
 fn parse_input(input: &str) -> DisplayNotes {
@@ -91,11 +137,12 @@ fn main() {
     let notes = parse_input(include_str!("input.txt"));
 
     dbg!(notes.count_easy_digits());
+    dbg!(notes.count_deduced_digits());
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Digit};
+    use crate::{Digit, DisplayLine, parse_input};
 
     const INPUT: &str = r#"
         be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
@@ -142,5 +189,18 @@ mod tests {
     fn count_easy_digits_from_input() {
         let lines = parse_input(INPUT);
         assert_eq!(26, lines.count_easy_digits());
+    }
+
+    #[test]
+    fn deduces_four_digit_value() {
+        let input = "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab | cdfeb fcadb cdfeb cdbaf";
+        let line = DisplayLine::from(input);
+        assert_eq!(5353, line.deduce_digits());
+    }
+
+    #[test]
+    fn count_deduced_digits() {
+        let lines = parse_input(INPUT);
+        assert_eq!(61229, lines.count_deduced_digits());
     }
 }

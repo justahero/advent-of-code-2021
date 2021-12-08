@@ -70,3 +70,25 @@ egadfb cdbfeg cegd fecab cgb gbdefca cg fgcdab egfdb bfceg | gbdfcae bgc cg cgb
 gcafb gcf dcaebfg ecagb gf abcdeg gaef cafbge fdbac fegbdc | fgae cfgab fg bagce
 ```
 
+Deduction of finding the right rewiring.
+Given the following input:
+
+```
+acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab
+```
+
+leads to solution:
+
+```
+ dddd
+e    a
+e    a
+ ffff
+g    b
+g    b
+ cccc
+```
+
+How is this determined?
+
+
