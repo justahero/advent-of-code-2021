@@ -150,7 +150,7 @@ impl DisplayLine {
         let four = table.remove(&4).unwrap()[0];
         let seven = table.remove(&3).unwrap()[0];
         let eight = table.remove(&7).unwrap()[0];
-        let (index, &three) = table[&5].iter().find_position(|&&digit| (one & digit).count() == 2).unwrap();
+        let (index, &three) = table[&5].iter().find_position(|&&digit| (digit - seven).count() == 2).unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
@@ -164,7 +164,7 @@ impl DisplayLine {
         }
         let zero = table.remove(&6).unwrap()[0];
         let (index, &five) = table[&5].iter().find_position(|&&digit| (six - digit).count() == 1).unwrap();
-        if let Some(digits) = table.get_mut(&6) {
+        if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
         let two = table.remove(&5).unwrap()[0];
@@ -180,26 +180,12 @@ impl DisplayLine {
         println!("EIGHT: {}", eight);
         println!("NINE: {}", nine);
 
-        // rewiring table, key = real segment, value = found segment
-        let mut result: HashMap<u16, Digit> = HashMap::new();
-        result.insert(0, seven - one);
-        result.insert(1, three ^ nine);
-        result.insert(2, eight - six);
-        result.insert(3, eight - zero);
-        result.insert(4, eight - nine);
-        result.insert(5, (eight - six) ^ one);
-        result.insert(6,nine - (four | seven));
-        println!("RESULT: {:?}", result);
-
-        for (_key, value) in &result {
-            assert!(value.count() == 1);
-        }
-
+        // hacky version to get final sum
         let list = vec![zero, one, two, three, four, five, six, seven, eight, nine];
         let four_digits = self.digits.iter().map(|digit| {
             let (val, _) = list.iter().find_position(|&val| val == digit).unwrap();
-            val
-        }).map(|d| format!("{}", d)).join("").parse::<u32>().unwrap();
+            val.to_string()
+        }).join("").parse::<u32>().unwrap();
 
         four_digits
     }
