@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::{Debug, Display}, ops::{BitAnd, BitOr, BitXor, Shl}};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    ops::{BitAnd, BitOr, BitXor, Shl},
+};
 
 use itertools::Itertools;
 
@@ -26,8 +30,7 @@ impl Digit {
 
     // Returns an iterator over all positions with set bits
     pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
-        (0..=6_u8)
-            .filter(move |index| (self.0 & 1u16.shl(index) > 0))
+        (0..=6_u8).filter(move |index| (self.0 & 1u16.shl(index) > 0))
     }
 
     #[inline(always)]
@@ -140,29 +143,47 @@ impl DisplayLine {
     ///
     pub fn deduce_digits(&self) -> u32 {
         // let table = self.segments.iter().map(|digit| (digit.count_ones(), digit)).collect::<HashMap<_, Vec<_>>>();
-        let mut table = self.segments.iter().fold(HashMap::new(), |mut table, digit| {
-            table.entry(digit.count()).or_insert(Vec::new()).push(digit.clone());
-            table
-        });
+        let mut table = self
+            .segments
+            .iter()
+            .fold(HashMap::new(), |mut table, digit| {
+                table
+                    .entry(digit.count())
+                    .or_insert(Vec::new())
+                    .push(digit.clone());
+                table
+            });
 
         let one = table.remove(&2).unwrap()[0];
         let four = table.remove(&4).unwrap()[0];
         let seven = table.remove(&3).unwrap()[0];
         let eight = table.remove(&7).unwrap()[0];
-        let (index, &three) = table[&5].iter().find_position(|&&digit| (digit - seven).count() == 2).unwrap();
+        let (index, &three) = table[&5]
+            .iter()
+            .find_position(|&&digit| (digit - seven).count() == 2)
+            .unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
-        let (index, &nine) = table[&6].iter().find_position(|&&digit| (three ^ digit).count() == 1).unwrap();
+        let (index, &nine) = table[&6]
+            .iter()
+            .find_position(|&&digit| (three ^ digit).count() == 1)
+            .unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
-        let (index, &six) = table[&6].iter().find_position(|&&digit| (one & (eight - digit)).count() == 1).unwrap();
+        let (index, &six) = table[&6]
+            .iter()
+            .find_position(|&&digit| (one & (eight - digit)).count() == 1)
+            .unwrap();
         if let Some(digits) = table.get_mut(&6) {
             digits.remove(index);
         }
         let zero = table.remove(&6).unwrap()[0];
-        let (index, &five) = table[&5].iter().find_position(|&&digit| (six - digit).count() == 1).unwrap();
+        let (index, &five) = table[&5]
+            .iter()
+            .find_position(|&&digit| (six - digit).count() == 1)
+            .unwrap();
         if let Some(digits) = table.get_mut(&5) {
             digits.remove(index);
         }
@@ -170,10 +191,16 @@ impl DisplayLine {
 
         // hacky version to get final sum
         let list = vec![zero, one, two, three, four, five, six, seven, eight, nine];
-        let four_digits = self.digits.iter().map(|digit| {
-            let (val, _) = list.iter().find_position(|&val| val == digit).unwrap();
-            val.to_string()
-        }).join("").parse::<u32>().unwrap();
+        let four_digits = self
+            .digits
+            .iter()
+            .map(|digit| {
+                let (val, _) = list.iter().find_position(|&val| val == digit).unwrap();
+                val.to_string()
+            })
+            .join("")
+            .parse::<u32>()
+            .unwrap();
 
         four_digits
     }
@@ -198,11 +225,17 @@ impl DisplayNotes {
     }
 
     pub fn count_easy_digits(&self) -> usize {
-        self.lines.iter().map(|line| line.count_easy_digits()).sum::<usize>()
+        self.lines
+            .iter()
+            .map(|line| line.count_easy_digits())
+            .sum::<usize>()
     }
 
     pub fn count_deduced_digits(&self) -> u32 {
-        self.lines.iter().map(|line| line.deduce_digits()).sum::<u32>()
+        self.lines
+            .iter()
+            .map(|line| line.deduce_digits())
+            .sum::<u32>()
     }
 }
 
@@ -225,7 +258,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Digit, DisplayLine, parse_input};
+    use itertools::Itertools;
+
+    use crate::{parse_input, Digit, DisplayLine};
 
     const INPUT: &str = r#"
         be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
@@ -276,7 +311,8 @@ mod tests {
 
     #[test]
     fn deduces_four_digit_value() {
-        let input = "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab | cdfeb fcadb cdfeb cdbaf";
+        let input =
+            "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab | cdfeb fcadb cdfeb cdbaf";
         let line = DisplayLine::from(input);
         assert_eq!(5353, line.deduce_digits());
     }
@@ -285,5 +321,19 @@ mod tests {
     fn count_deduced_digits() {
         let lines = parse_input(INPUT);
         assert_eq!(61229, lines.count_deduced_digits());
+    }
+
+    #[test]
+    fn count_all_deduced_digits() {
+        let lines = parse_input(INPUT);
+        let lines = lines
+            .lines
+            .iter()
+            .map(|line| line.deduce_digits())
+            .collect_vec();
+        assert_eq!(
+            vec![8394, 9781, 1197, 9361, 4873, 8418, 4548, 1625, 8717, 4315,],
+            lines,
+        );
     }
 }
