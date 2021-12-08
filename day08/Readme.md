@@ -80,15 +80,16 @@ acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab
 leads to solution:
 
 ```
- dddd
-e    a
-e    a
- ffff
-g    b
-g    b
- cccc
+  0000             3333
+ 1    2           4    0
+ 1    2           4    0
+  3333     -->     5555
+ 4    5           6    1
+ 4    5           6    1
+  6666             2222
 ```
 
 How is this determined?
 
-
+* 2 bits => digit 1
+* 4 bits => digit 4

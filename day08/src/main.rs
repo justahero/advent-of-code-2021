@@ -1,9 +1,9 @@
 use anyhow::anyhow;
-use std::{collections::HashMap, fmt::Display, ops::Shl};
+use std::{collections::HashMap, fmt::{Debug, Display}, ops::Shl};
 
 use itertools::Itertools;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 struct Digit(u16);
 
 impl Digit {
@@ -15,6 +15,10 @@ impl Digit {
         Self(0)
     }
 
+    pub fn all() -> Self {
+        Self(0b1111111)
+    }
+
     pub fn set(&mut self, pos: u16) {
         assert!(pos < 7);
         self.0 |= 1_u16.shl(pos);
@@ -23,6 +27,12 @@ impl Digit {
     pub fn get(&self, pos: u16) -> bool {
         assert!(pos < 7);
         self.0 & 1_u16.shl(pos) > 0
+    }
+
+    // Returns an iterator over all positions with set bits
+    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
+        (0..=6_u8)
+            .filter(move |index| (self.0 & 1u16.shl(index) > 0))
     }
 
     pub fn count_ones(&self) -> u32 {
@@ -37,6 +47,18 @@ impl From<&str> for Digit {
             digit.set((char as u32 - 'a' as u32) as u16);
             digit
         })
+    }
+}
+
+impl Debug for Digit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:07b}", self.0)
+    }
+}
+
+impl Display for Digit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:07b}", self.0)
     }
 }
 
@@ -81,15 +103,39 @@ impl DisplayLine {
     /// * `6` appears 7 times
     ///
     pub fn deduce_digits(&self) -> u32 {
-        // Table to rewire the given segments to the real segments
-        let _segment_table: HashMap<u16, u16> = HashMap::new();
-
-        // Order of all segments, not an optimal deduction, but easy to implement
-        let _x = (0..=6_u16).permutations(7).find(|list| {
-            // check given permutation matches exactly all numbers
-            println!("PERMUTATION: {:?}", list);
-            false
+        // let table = self.segments.iter().map(|digit| (digit.count_ones(), digit)).collect::<HashMap<_, Vec<_>>>();
+        let table = self.segments.iter().fold(HashMap::new(), |mut table, digit| {
+            table.entry(digit.count_ones()).or_insert(Vec::new()).push(digit);
+            table
         });
+
+        // [abcdefg, abcdefg, abcdefg, abcdefg, abcdefg, abcdefg, abcdefg]
+        // TODO deduct all digits from the buckets
+        // * digit `1` with two
+
+        // deduct all digits that in each "bucket" only a single bit is set afterwards, the final segment
+        let mut list = [
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+            Digit::all(),
+        ];
+
+        // iterate over all segments
+        /*
+        for (index, segment) in self.segments.iter().enumerate() {
+            println!("SEGMENT - {}: {:07b}", index, segment.0);
+            for bit in segment.iter() {
+                println!("  BIT: {}", bit);
+            }
+        }
+        */
 
         let four_digits = 0_u32;
         four_digits
