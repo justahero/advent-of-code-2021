@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::Shl,
-};
+use std::{collections::HashMap, ops::Shl};
 
 use itertools::Itertools;
 
@@ -33,7 +30,7 @@ fn diff(lhs: u16, rhs: u16) -> u16 {
 /// The list requires to be of length 1.
 fn remove_element<F>(table: &mut HashMap<u32, Vec<u16>>, index: u32, bit_fn: F) -> u16
 where
-    F: FnMut(&&u16) -> bool
+    F: FnMut(&&u16) -> bool,
 {
     let (pos, &digit) = table[&index].iter().find_position(bit_fn).unwrap();
     if let Some(list) = table.get_mut(&index) {
@@ -90,9 +87,13 @@ impl DisplayLine {
         let four = table.remove(&4).unwrap()[0];
         let seven = table.remove(&3).unwrap()[0];
         let eight = table.remove(&7).unwrap()[0];
-        let three = remove_element(&mut table, 5, |&&digit| diff(digit, seven).count_ones() == 2);
+        let three = remove_element(&mut table, 5, |&&digit| {
+            diff(digit, seven).count_ones() == 2
+        });
         let nine = remove_element(&mut table, 6, |&&digit| (three ^ digit).count_ones() == 1);
-        let six = remove_element(&mut table, 6, |&&digit| (one & (diff(eight, digit))).count_ones() == 1);
+        let six = remove_element(&mut table, 6, |&&digit| {
+            (one & (diff(eight, digit))).count_ones() == 1
+        });
         let zero = table.remove(&6).unwrap()[0];
         let five = remove_element(&mut table, 5, |&&digit| (six - digit).count_ones() == 1);
         let two = table.remove(&5).unwrap()[0];
@@ -168,7 +169,7 @@ fn main() {
 mod tests {
     use itertools::Itertools;
 
-    use crate::{DisplayLine, parse_binary, parse_input};
+    use crate::{parse_binary, parse_input, DisplayLine};
 
     const INPUT: &str = r#"
         be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
