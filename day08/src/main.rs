@@ -29,6 +29,19 @@ fn diff(lhs: u16, rhs: u16) -> u16 {
     lhs
 }
 
+/// This extracts the single element under the given key
+/// The list requires to be of length 1.
+fn remove_element<F>(table: &mut HashMap<u32, Vec<u16>>, index: u32, bit_fn: F) -> u16
+where
+    F: FnMut(&&u16) -> bool
+{
+    let (pos, &digit) = table[&index].iter().find_position(bit_fn).unwrap();
+    if let Some(list) = table.get_mut(&index) {
+        list.remove(pos);
+    }
+    digit
+}
+
 impl DisplayLine {
     /// Returns the easily detectable digits: 1, 4, 7 or 8
     pub fn count_easy_digits(&self) -> usize {
@@ -77,35 +90,11 @@ impl DisplayLine {
         let four = table.remove(&4).unwrap()[0];
         let seven = table.remove(&3).unwrap()[0];
         let eight = table.remove(&7).unwrap()[0];
-        let (index, &three) = table[&5]
-            .iter()
-            .find_position(|&&digit| (diff(digit, seven)).count_ones() == 2)
-            .unwrap();
-        if let Some(digits) = table.get_mut(&5) {
-            digits.remove(index);
-        }
-        let (index, &nine) = table[&6]
-            .iter()
-            .find_position(|&&digit| (three ^ digit).count_ones() == 1)
-            .unwrap();
-        if let Some(digits) = table.get_mut(&6) {
-            digits.remove(index);
-        }
-        let (index, &six) = table[&6]
-            .iter()
-            .find_position(|&&digit| (one & (diff(eight, digit))).count_ones() == 1)
-            .unwrap();
-        if let Some(digits) = table.get_mut(&6) {
-            digits.remove(index);
-        }
+        let three = remove_element(&mut table, 5, |&&digit| diff(digit, seven).count_ones() == 2);
+        let nine = remove_element(&mut table, 6, |&&digit| (three ^ digit).count_ones() == 1);
+        let six = remove_element(&mut table, 6, |&&digit| (one & (diff(eight, digit))).count_ones() == 1);
         let zero = table.remove(&6).unwrap()[0];
-        let (index, &five) = table[&5]
-            .iter()
-            .find_position(|&&digit| (six - digit).count_ones() == 1)
-            .unwrap();
-        if let Some(digits) = table.get_mut(&5) {
-            digits.remove(index);
-        }
+        let five = remove_element(&mut table, 5, |&&digit| (six - digit).count_ones() == 1);
         let two = table.remove(&5).unwrap()[0];
 
         // hacky version to get final sum
