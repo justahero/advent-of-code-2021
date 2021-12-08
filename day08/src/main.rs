@@ -10,7 +10,7 @@ impl Digit {
     pub fn new(val: u16) -> Self {
         Self(val)
     }
-    
+
     pub fn empty() -> Self {
         Self(0)
     }
@@ -18,6 +18,10 @@ impl Digit {
     pub fn set(&mut self, pos: u16) {
         assert!(pos < 7);
         self.0 |= 1_u16.shl(pos);
+    }
+
+    pub fn count_ones(&self) -> u32 {
+        self.0.count_ones()
     }
 }
 
@@ -40,33 +44,58 @@ impl DisplayLine {
     pub fn new(segments: Vec<Digit>, digits: Vec<Digit>) -> Self {
         Self { segments, digits }
     }
+
+    /// Returns the easily detectable digits: 1, 4, 7 or 8
+    pub fn count_easy_digits(&self) -> usize {
+        self.digits
+            .iter()
+            .filter(|&digit| [2, 3, 4, 7].contains(&digit.count_ones()))
+            .count()
+    }
 }
 
 impl From<&str> for DisplayLine {
     fn from(line: &str) -> Self {
-        let (segments, _digits) = line.split_once('|').expect("Failed to split line");
+        let (segments, digits) = line.split_once('|').expect("Failed to split line");
         let segments = segments.split_whitespace().map(Digit::from).collect_vec();
-
-        Self { segments, digits: Vec::new() }
+        let digits = digits.split_whitespace().map(Digit::from).collect_vec();
+        Self { segments, digits }
     }
 }
 
-fn parse_input(input: &str) -> Vec<DisplayLine> {
-    input
+struct DisplayNotes {
+    pub lines: Vec<DisplayLine>,
+}
+
+impl DisplayNotes {
+    pub fn new(lines: Vec<DisplayLine>) -> Self {
+        Self { lines }
+    }
+
+    pub fn count_easy_digits(&self) -> usize {
+        self.lines.iter().map(|line| line.count_easy_digits()).sum::<usize>()
+    }
+}
+
+fn parse_input(input: &str) -> DisplayNotes {
+    let lines = input
         .lines()
         .map(str::trim)
         .filter(|&line| !line.is_empty())
         .map(DisplayLine::from)
-        .collect_vec()
+        .collect_vec();
+    DisplayNotes::new(lines)
 }
 
 fn main() {
-    println!("Hello, world!");
+    let notes = parse_input(include_str!("input.txt"));
+
+    dbg!(notes.count_easy_digits());
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Digit, parse_input};
+    use crate::{parse_input, Digit};
 
     const INPUT: &str = r#"
         be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
@@ -88,9 +117,9 @@ mod tests {
     }
 
     #[test]
-    fn parses_input_line() {
+    fn parses_first_input_line() {
         let input = "be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe";
-        let input = &parse_input(input)[0];
+        let input = &parse_input(input).lines[0];
         assert_eq!(
             vec![
                 Digit::new(0b0010010),
@@ -106,8 +135,12 @@ mod tests {
             ],
             input.segments,
         );
+        assert_eq!(2, input.count_easy_digits());
     }
 
     #[test]
-    fn parses_input() {}
+    fn count_easy_digits_from_input() {
+        let lines = parse_input(INPUT);
+        assert_eq!(26, lines.count_easy_digits());
+    }
 }
