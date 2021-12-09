@@ -45,30 +45,33 @@ impl HeightMap {
     /// * for each low point, determine all other fields flowing into
     /// * a basin is surrounded by `9` (wall)
     ///
-    pub fn find_basins(&self) {
+    pub fn find_basins(&self) -> Vec<usize> {
         let low_points = self.find_low_points();
+        let basins = low_points.iter().map(|point| self.find_basin(point.x, point.y) ).collect_vec();
+
+        basins
     }
 
     /// Return the number of fields that belong to the basin of the low point
-    /// Use breadth search first for now, should be simple enough, maybe not fast
+    /// Use breadth search first for now, should be simple enough, maybe not too fast
     pub fn find_basin(&self, x: u32, y: u32) -> usize {
         let mut visited: Vec<&Point> = Vec::new();
-
         let mut points: VecDeque<&Point> = VecDeque::new();
+
         points.push_back(self.get_point(x, y));
+        visited.push(self.get_point(x, y));
 
+        // for each visited point check if there are more neighbors not visited yet
         while let Some(point) = points.pop_front() {
-            visited.push(point);
-
-            let neighbors = [
-                self.get_depth(point.x as i32 - 1, point.y as i32),
-                self.get_depth(point.x as i32 + 1, point.y as i32),
-                self.get_depth(point.x as i32, point.y as i32 - 1),
-                self.get_depth(point.x as i32, point.y as i32 + 1),
-            ];
-
             // append all neighbors that were not already visited and are below depth 9
-            // neighbors.iter().for_each(|f|)
+            self.neighbors(point.x, point.y).for_each(|point| {
+                if let Some(point) = point {
+                    if !visited.contains(&point) && point.depth < 9 {
+                        points.push_back(&point);
+                        visited.push(point);
+                    }
+                }
+            })
         }
 
         visited.len()
@@ -81,7 +84,7 @@ impl HeightMap {
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let depth = self.get_depth(x as i32, y as i32);
+                let depth = self.get_point(x, y).depth;
 
                 // TODO try to refactor filter / map combo
                 let neighbors = self
@@ -97,16 +100,6 @@ impl HeightMap {
         }
 
         result
-    }
-
-    /// Returns the depth at coordinates (x, y). If the coordinates are outside the heightmap return max value
-    fn get_depth(&self, x: i32, y: i32) -> u8 {
-        if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
-            let index = y as u32 * self.width + x as u32;
-            self.points[index as usize].depth
-        } else {
-            u8::MAX
-        }
     }
 
     /// Returns the point at coordinates
@@ -160,6 +153,9 @@ fn main() {
 
     let risk_level = low_points.iter().map(|p| p.depth as u32 + 1).sum::<u32>();
     dbg!(risk_level);
+
+    let basins = height_map.find_basins().sort();
+    println!("BASINS: {:?}", basins);
 }
 
 #[cfg(test)]
