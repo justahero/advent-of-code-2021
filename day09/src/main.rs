@@ -54,15 +54,26 @@ impl HeightMap {
     /// Return the number of fields that belong to the basin of the low point
     /// Use breadth search first for now, should be simple enough, maybe not fast
     pub fn find_basin(&self, x: u32, y: u32) -> usize {
-        let mut basin: Vec<&Point> = Vec::new();
+        let mut visited: Vec<&Point> = Vec::new();
+
         let mut points: VecDeque<&Point> = VecDeque::new();
         points.push_back(self.get_point(x, y));
 
-        while !points.is_empty() {
-            break;
+        while let Some(point) = points.pop_front() {
+            visited.push(point);
+
+            let neighbors = [
+                self.get_depth(point.x as i32 - 1, point.y as i32),
+                self.get_depth(point.x as i32 + 1, point.y as i32),
+                self.get_depth(point.x as i32, point.y as i32 - 1),
+                self.get_depth(point.x as i32, point.y as i32 + 1),
+            ];
+
+            // append all neighbors that were not already visited and are below depth 9
+            // neighbors.iter().for_each(|f|)
         }
 
-        basin.len()
+        visited.len()
     }
 
     /// Find all low points in the height map
@@ -107,14 +118,17 @@ impl HeightMap {
         &self.points[(y * self.width + x) as usize]
     }
 
-    /*
     fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = Option<&Point>> + '_ {
-        self.get(x as i32 - 1, y as i32);
-        self.get(x as i32 + 1, y as i32);
-        self.get(x as i32, y as i32 - 1);
-        self.get(x as i32, y as i32 + 1);
+        [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().map(|(nx, ny)| self.get(*nx, *ny))
     }
-    */
+
+    fn get(&self, x: i32, y: i32) -> Option<&Point> {
+        if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
+            self.points.get((y as u32 * self.width + x as u32) as usize)
+        } else {
+            None
+        }
+    }
 }
 
 fn parse_input(input: &str) -> HeightMap {
