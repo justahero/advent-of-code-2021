@@ -47,8 +47,6 @@ impl HeightMap {
     ///
     pub fn find_basins(&self) {
         let low_points = self.find_low_points();
-
-        
     }
 
     /// Return the number of fields that belong to the basin of the low point
@@ -85,14 +83,14 @@ impl HeightMap {
             for x in 0..self.width {
                 let depth = self.get_depth(x as i32, y as i32);
 
-                let neighbors = [
-                    self.get_depth(x as i32 - 1, y as i32),
-                    self.get_depth(x as i32 + 1, y as i32),
-                    self.get_depth(x as i32, y as i32 - 1),
-                    self.get_depth(x as i32, y as i32 + 1),
-                ];
+                // TODO try to refactor filter / map combo
+                let neighbors = self
+                    .neighbors(x, y)
+                    .filter(Option::is_some)
+                    .map(|v| v.unwrap())
+                    .collect_vec();
 
-                if neighbors.iter().all(|&neighbor| neighbor > depth) {
+                if neighbors.iter().all(|&p| p.depth > depth) {
                     result.push(self.get_point(x, y).clone());
                 }
             }
@@ -119,7 +117,9 @@ impl HeightMap {
     }
 
     fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = Option<&Point>> + '_ {
-        [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().map(|(nx, ny)| self.get(*nx, *ny))
+        [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            .iter()
+            .map(move |&(nx, ny)| self.get(x as i32 + nx, y as i32 + ny))
     }
 
     fn get(&self, x: i32, y: i32) -> Option<&Point> {
@@ -138,7 +138,11 @@ fn parse_input(input: &str) -> HeightMap {
         .filter(|line| !line.is_empty())
         .collect_vec();
 
-    let width = lines.iter().max_by_key(|&l| l.len()).expect("Failed to get width.").len();
+    let width = lines
+        .iter()
+        .max_by_key(|&l| l.len())
+        .expect("Failed to get width.")
+        .len();
     let height = lines.len();
 
     let values = lines
@@ -160,7 +164,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Point, parse_input};
+    use crate::{parse_input, Point};
 
     const INPUT: &str = r#"
         2199943210
@@ -169,7 +173,7 @@ mod tests {
         8767896789
         9899965678
     "#;
-    
+
     #[test]
     fn check_find_lowest_points() {
         let height_map = parse_input(INPUT);
