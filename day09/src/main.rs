@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use itertools::Itertools;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,8 +41,28 @@ impl HeightMap {
     }
 
     /// Determine all basins in the heightmap.
+    ///
+    /// * for each low point, determine all other fields flowing into
+    /// * a basin is surrounded by `9` (wall)
+    ///
     pub fn find_basins(&self) {
         let low_points = self.find_low_points();
+
+        
+    }
+
+    /// Return the number of fields that belong to the basin of the low point
+    /// Use breadth search first for now, should be simple enough, maybe not fast
+    pub fn find_basin(&self, x: u32, y: u32) -> usize {
+        let mut basin: Vec<&Point> = Vec::new();
+        let mut points: VecDeque<&Point> = VecDeque::new();
+        points.push_back(self.get_point(x, y));
+
+        while !points.is_empty() {
+            break;
+        }
+
+        basin.len()
     }
 
     /// Find all low points in the height map
@@ -50,13 +72,13 @@ impl HeightMap {
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let depth = self.get(x as i32, y as i32);
+                let depth = self.get_depth(x as i32, y as i32);
 
                 let neighbors = [
-                    self.get(x as i32 - 1, y as i32),
-                    self.get(x as i32 + 1, y as i32),
-                    self.get(x as i32, y as i32 - 1),
-                    self.get(x as i32, y as i32 + 1),
+                    self.get_depth(x as i32 - 1, y as i32),
+                    self.get_depth(x as i32 + 1, y as i32),
+                    self.get_depth(x as i32, y as i32 - 1),
+                    self.get_depth(x as i32, y as i32 + 1),
                 ];
 
                 if neighbors.iter().all(|&neighbor| neighbor > depth) {
@@ -69,7 +91,7 @@ impl HeightMap {
     }
 
     /// Returns the depth at coordinates (x, y). If the coordinates are outside the heightmap return max value
-    fn get(&self, x: i32, y: i32) -> u8 {
+    fn get_depth(&self, x: i32, y: i32) -> u8 {
         if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
             let index = y as u32 * self.width + x as u32;
             self.points[index as usize].depth
@@ -84,6 +106,15 @@ impl HeightMap {
         assert!(y < self.height);
         &self.points[(y * self.width + x) as usize]
     }
+
+    /*
+    fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = Option<&Point>> + '_ {
+        self.get(x as i32 - 1, y as i32);
+        self.get(x as i32 + 1, y as i32);
+        self.get(x as i32, y as i32 - 1);
+        self.get(x as i32, y as i32 + 1);
+    }
+    */
 }
 
 fn parse_input(input: &str) -> HeightMap {
@@ -139,5 +170,14 @@ mod tests {
             ],
             height_map.find_low_points(),
         );
+    }
+
+    #[test]
+    fn find_basin_of_low_point() {
+        let height_map = parse_input(INPUT);
+        assert_eq!(3, height_map.find_basin(1, 0));
+        assert_eq!(9, height_map.find_basin(9, 0));
+        assert_eq!(14, height_map.find_basin(2, 2));
+        assert_eq!(9, height_map.find_basin(6, 4));
     }
 }
