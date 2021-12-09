@@ -47,7 +47,10 @@ impl HeightMap {
     ///
     pub fn find_basins(&self) -> Vec<usize> {
         let low_points = self.find_low_points();
-        let basins = low_points.iter().map(|point| self.find_basin(point.x, point.y) ).collect_vec();
+        let basins = low_points
+            .iter()
+            .map(|point| self.find_basin(point.x, point.y))
+            .collect_vec();
 
         basins
     }
@@ -154,7 +157,14 @@ fn main() {
     let risk_level = low_points.iter().map(|p| p.depth as u32 + 1).sum::<u32>();
     dbg!(risk_level);
 
-    let basins = height_map.find_basins().sort();
+    let mut basins = height_map.find_basins();
+    basins.sort();
+    let basins = basins
+        .iter()
+        .rev()
+        .take(3)
+        .fold(1, |product, &value| product * value);
+
     println!("BASINS: {:?}", basins);
 }
 
