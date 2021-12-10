@@ -87,7 +87,8 @@ impl Token {
 #[derive(Debug, PartialEq, Clone)]
 enum DecoderResult {
     Ok,
-    Corrupt(Token),
+    /// Expected token char and found char
+    Corrupt(char, char),
     Incomplete,
 }
 
@@ -98,8 +99,8 @@ fn score(lines: Vec<String>) -> u32 {
 
     let mut score = 0;
     for line in lines {
-        if let DecoderResult::Corrupt(token) = decode_chunk(&line) {
-            score += score_table[&token.as_char()]
+        if let DecoderResult::Corrupt(_expected, found) = decode_chunk(&line) {
+            score += score_table[&found];
         }
     }
     score
@@ -114,11 +115,7 @@ fn decode_chunk(chunk: &str) -> DecoderResult {
             stack.push(token);
         } else if let Some(last_token) = stack.pop() {
             if !last_token.matches(&token) {
-                if stack.is_empty() {
-                    return DecoderResult::Incomplete;
-                } else {
-                    return DecoderResult::Corrupt(token);
-                }
+                return DecoderResult::Corrupt(last_token.opposite().as_char(), token.as_char());
             }
         }
     }
@@ -148,7 +145,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{decode_chunk, parse_input, score, DecoderResult, Token};
+    use crate::{decode_chunk, parse_input, score, DecoderResult};
 
     const INPUT: &str = r#"
         [({(<(())[]>[[{[]{<()<>>
@@ -174,30 +171,34 @@ mod tests {
     }
 
     #[test]
-    fn test_incomplete_lines() {
-        assert_eq!(DecoderResult::Incomplete, decode_chunk("(]"));
-        assert_eq!(DecoderResult::Incomplete, decode_chunk("{()()()>"));
-        assert_eq!(DecoderResult::Incomplete, decode_chunk("(((()))}"));
-        assert_eq!(DecoderResult::Incomplete, decode_chunk("<([]){()}[{}])"));
+    fn test_short_corrupted_lines() {
+        assert_eq!(DecoderResult::Corrupt(')', ']'), decode_chunk("(]"));
+        assert_eq!(DecoderResult::Corrupt('}', '>'), decode_chunk("{()()()>"));
+        assert_eq!(DecoderResult::Corrupt(')', '}'), decode_chunk("(((()))}"));
+        assert_eq!(DecoderResult::Corrupt('>', ')'), decode_chunk("<([]){()}[{}])"));
     }
 
     #[test]
     fn test_corrupted_lines() {
         assert_eq!(
-            DecoderResult::Corrupt(Token::RightBrace),
+            DecoderResult::Corrupt(']', '}'),
             decode_chunk("{([(<{}[<>[]}>{[]{[(<()>")
         );
         assert_eq!(
-            DecoderResult::Corrupt(Token::RightParen),
+            DecoderResult::Corrupt(']', ')'),
             decode_chunk("[[<[([]))<([[{}[[()]]]")
         );
         assert_eq!(
-            DecoderResult::Corrupt(Token::RightBracket),
+            DecoderResult::Corrupt(')', ']'),
             decode_chunk("[{[{({}]{}}([{[{{{}}([]")
         );
         assert_eq!(
-            DecoderResult::Corrupt(Token::RightParen),
+            DecoderResult::Corrupt('>', ')'),
             decode_chunk("[<(<(<(<{}))><([]([]()")
+        );
+        assert_eq!(
+            DecoderResult::Corrupt(']', '>'),
+            decode_chunk("<{([([[(<>()){}]>(<<{{")
         );
     }
 
