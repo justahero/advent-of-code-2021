@@ -107,23 +107,29 @@ fn corrupted_score(lines: &[String]) -> u32 {
     score
 }
 
-fn incomplete_score(lines: &[String]) -> u32 {
-    let score_table: HashMap<char, u32> = [(')', 1), (']', 2), ('}', 3), ('>', 4)]
+fn incomplete_score(tokens: &str) -> u64 {
+    let score_table: HashMap<char, u64> = [(')', 1), (']', 2), ('}', 3), ('>', 4)]
         .into_iter()
         .collect();
 
-    let mut scores: Vec<u32> = Vec::new();
+    let mut total = 0_u64;
+    for c in tokens.chars() {
+        total = total * 5 + score_table[&c];
+    }
+    total
+}
+
+fn score_2nd(lines: &[String]) -> u64 {
+    let mut scores: Vec<u64> = Vec::new();
     for line in lines {
         if let DecoderResult::Incomplete(tokens) = decode_chunk(&line) {
-            let score = tokens.chars().fold(0_u32, |product, token| {
-                product * 5 + score_table[&token]
-            });
-            scores.push(score);
+            scores.push(incomplete_score(&tokens));
         }
     }
 
     // Sort all scores
     scores.sort();
+    println!("SCORES: {:?}", scores);
 
     // Find the middle score
     let index = scores.len() / 2;
@@ -171,13 +177,14 @@ fn main() {
     let total = corrupted_score(&chunks);
     dbg!(total);
 
-    let total = incomplete_score(&chunks);
+    let total = score_2nd(&chunks);
+    assert!(total < 392811529719);
     dbg!(total);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{DecoderResult, corrupted_score, decode_chunk, incomplete_score, parse_input};
+    use crate::{DecoderResult, corrupted_score, decode_chunk, incomplete_score, parse_input, score_2nd};
 
     const INPUT: &str = r#"
         [({(<(())[]>[[{[]{<()<>>
@@ -207,7 +214,10 @@ mod tests {
         assert_eq!(DecoderResult::Corrupt(')', ']'), decode_chunk("(]"));
         assert_eq!(DecoderResult::Corrupt('}', '>'), decode_chunk("{()()()>"));
         assert_eq!(DecoderResult::Corrupt(')', '}'), decode_chunk("(((()))}"));
-        assert_eq!(DecoderResult::Corrupt('>', ')'), decode_chunk("<([]){()}[{}])"));
+        assert_eq!(
+            DecoderResult::Corrupt('>', ')'),
+            decode_chunk("<([]){()}[{}])")
+        );
     }
 
     #[test]
@@ -261,8 +271,17 @@ mod tests {
     }
 
     #[test]
+    fn test_incomplete_scores() {
+        assert_eq!(288957, incomplete_score("}}]])})]"));
+        assert_eq!(5566, incomplete_score(")}>]})"));
+        assert_eq!(1480781, incomplete_score("}}>}>))))"));
+        assert_eq!(995444, incomplete_score("]]}}]}]}>"));
+        assert_eq!(294, incomplete_score("])}>"));
+    }
+
+    #[test]
     fn find_incomlete_score() {
         let input = parse_input(INPUT);
-        assert_eq!(288957, incomplete_score(&input));
+        assert_eq!(288957, score_2nd(&input));
     }
 }
