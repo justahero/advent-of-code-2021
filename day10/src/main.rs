@@ -89,10 +89,11 @@ enum DecoderResult {
     Ok,
     /// Expected token char and found char
     Corrupt(char, char),
-    Incomplete,
+    /// Remaining stack as string
+    Incomplete(String),
 }
 
-fn score(lines: Vec<String>) -> u32 {
+fn corrupted_score(lines: &[String]) -> u32 {
     let score_table: HashMap<char, u32> = [(')', 3), (']', 57), ('}', 1197), ('>', 25137)]
         .into_iter()
         .collect();
@@ -106,8 +107,36 @@ fn score(lines: Vec<String>) -> u32 {
     score
 }
 
+fn incomplete_score(lines: &[String]) -> u32 {
+    let score_table: HashMap<char, u32> = [(')', 1), (']', 2), ('}', 3), ('>', 4)]
+        .into_iter()
+        .collect();
+
+    let mut scores: Vec<u32> = Vec::new();
+    for line in lines {
+        if let DecoderResult::Incomplete(tokens) = decode_chunk(&line) {
+            let score = tokens.chars().fold(0_u32, |product, token| {
+                product * 5 + score_table[&token]
+            });
+            scores.push(score);
+        }
+    }
+
+    // Sort all scores
+    scores.sort();
+
+    // Find the middle score
+    let index = scores.len() / 2;
+
+    scores[index]
+}
+
 /// Decodes the chunk and returns true if pairs match fully
 fn decode_chunk(chunk: &str) -> DecoderResult {
+    fn missing_tokens(list: &[Token]) -> String {
+        list.iter().rev().map(|t| t.opposite().as_char()).join("")
+    }
+
     let mut stack = Vec::new();
 
     for token in chunk.chars().map(Token::from).collect_vec() {
@@ -123,7 +152,7 @@ fn decode_chunk(chunk: &str) -> DecoderResult {
     if stack.is_empty() {
         DecoderResult::Ok
     } else {
-        DecoderResult::Incomplete
+        DecoderResult::Incomplete(missing_tokens(&stack))
     }
 }
 
@@ -139,13 +168,16 @@ fn parse_input(input: &str) -> Vec<String> {
 fn main() {
     let chunks = parse_input(include_str!("input.txt"));
 
-    let total = score(chunks);
+    let total = corrupted_score(&chunks);
+    dbg!(total);
+
+    let total = incomplete_score(&chunks);
     dbg!(total);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{decode_chunk, parse_input, score, DecoderResult};
+    use crate::{DecoderResult, corrupted_score, decode_chunk, incomplete_score, parse_input};
 
     const INPUT: &str = r#"
         [({(<(())[]>[[{[]{<()<>>
@@ -203,8 +235,34 @@ mod tests {
     }
 
     #[test]
-    fn find_syntax_error_score() {
+    fn test_incomplete_lines() {
+        assert_eq!(
+            DecoderResult::Incomplete("}}]])})]".to_string()),
+            decode_chunk("[({(<(())[]>[[{[]{<()<>>"),
+        );
+        assert_eq!(
+            DecoderResult::Incomplete(")}>]})".to_string()),
+            decode_chunk("[(()[<>])]({[<{<<[]>>("),
+        );
+        assert_eq!(
+            DecoderResult::Incomplete("}}>}>))))".to_string()),
+            decode_chunk("(((({<>}<{<{<>}{[]{[]{}"),
+        );
+        assert_eq!(
+            DecoderResult::Incomplete("]]}}]}]}>".to_string()),
+            decode_chunk("{<[[]]>}<{[{[{[]{()[[[]"),
+        );
+    }
+
+    #[test]
+    fn find_corrupt_score() {
         let input = parse_input(INPUT);
-        assert_eq!(26397, score(input));
+        assert_eq!(26397, corrupted_score(&input));
+    }
+
+    #[test]
+    fn find_incomlete_score() {
+        let input = parse_input(INPUT);
+        assert_eq!(288957, incomplete_score(&input));
     }
 }
