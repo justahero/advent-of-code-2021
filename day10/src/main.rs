@@ -1,8 +1,8 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use itertools::Itertools;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Token {
     LeftParen,
     RightParen,
@@ -16,17 +16,7 @@ pub enum Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Token::LeftParen => '(',
-            Token::RightParen => ')',
-            Token::LeftBrace => '{',
-            Token::RightBrace => '}',
-            Token::LeftArrow => '<',
-            Token::RightArrow => '>',
-            Token::LeftBracket => '[',
-            Token::RightBracket => ']',
-        };
-        write!(f, "{}", s)
+        write!(f, "{}", self.as_char())
     }
 }
 
@@ -48,18 +38,23 @@ impl From<char> for Token {
 
 impl Token {
     pub fn opens(&self) -> bool {
-        const TOKENS: [Token; 4] = [Token::LeftParen, Token::LeftBrace, Token::LeftArrow, Token::LeftBracket];
+        const TOKENS: [Token; 4] = [
+            Token::LeftParen,
+            Token::LeftBrace,
+            Token::LeftArrow,
+            Token::LeftBracket,
+        ];
         TOKENS.contains(self)
     }
 
     pub fn matches(&self, rhs: &Token) -> bool {
-        match (self, rhs) {
-            (Token::LeftParen, Token::RightParen) => true,
-            (Token::LeftBrace, Token::RightBrace) => true,
-            (Token::LeftArrow, Token::RightArrow) => true,
-            (Token::LeftBracket, Token::RightBracket) => true,
-            _ => false,
-        }
+        matches!(
+            (self, rhs),
+            (Token::LeftParen, Token::RightParen)
+                | (Token::LeftBrace, Token::RightBrace)
+                | (Token::LeftArrow, Token::RightArrow)
+                | (Token::LeftBracket, Token::RightBracket)
+        )
     }
 
     pub fn opposite(&self) -> Token {
@@ -74,6 +69,19 @@ impl Token {
             Token::RightBracket => Token::LeftBracket,
         }
     }
+
+    pub fn as_char(&self) -> char {
+        match self {
+            Token::LeftParen => '(',
+            Token::RightParen => ')',
+            Token::LeftBrace => '{',
+            Token::RightBrace => '}',
+            Token::LeftArrow => '<',
+            Token::RightArrow => '>',
+            Token::LeftBracket => '[',
+            Token::RightBracket => ']',
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -84,10 +92,17 @@ enum DecoderResult {
 }
 
 fn score(lines: Vec<String>) -> u32 {
+    let score_table: HashMap<char, u32> = [(')', 3), (']', 57), ('}', 1197), ('>', 25137)]
+        .into_iter()
+        .collect();
+
+    let mut score = 0;
     for line in lines {
-        let result = decode_chunk(&line);
+        if let DecoderResult::Corrupt(token) = decode_chunk(&line) {
+            score += score_table[&token.as_char()]
+        }
     }
-    0
+    score
 }
 
 /// Decodes the chunk and returns true if pairs match fully
@@ -97,14 +112,12 @@ fn decode_chunk(chunk: &str) -> DecoderResult {
     for token in chunk.chars().map(Token::from).collect_vec() {
         if token.opens() {
             stack.push(token);
-        } else {
-            if let Some(last_token) = stack.pop() {
-                if !last_token.matches(&token) {
-                    if stack.is_empty() {
-                        return DecoderResult::Incomplete;
-                    } else {
-                        return DecoderResult::Corrupt(token);
-                    }
+        } else if let Some(last_token) = stack.pop() {
+            if !last_token.matches(&token) {
+                if stack.is_empty() {
+                    return DecoderResult::Incomplete;
+                } else {
+                    return DecoderResult::Corrupt(token);
                 }
             }
         }
@@ -135,7 +148,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DecoderResult, Token, decode_chunk, parse_input, score};
+    use crate::{decode_chunk, parse_input, score, DecoderResult, Token};
 
     const INPUT: &str = r#"
         [({(<(())[]>[[{[]{<()<>>
@@ -170,10 +183,22 @@ mod tests {
 
     #[test]
     fn test_corrupted_lines() {
-        assert_eq!(DecoderResult::Corrupt(Token::RightBrace), decode_chunk("{([(<{}[<>[]}>{[]{[(<()>"));
-        assert_eq!(DecoderResult::Corrupt(Token::RightParen), decode_chunk("[[<[([]))<([[{}[[()]]]"));
-        assert_eq!(DecoderResult::Corrupt(Token::RightBracket), decode_chunk("[{[{({}]{}}([{[{{{}}([]"));
-        assert_eq!(DecoderResult::Corrupt(Token::RightParen), decode_chunk("[<(<(<(<{}))><([]([]()"));
+        assert_eq!(
+            DecoderResult::Corrupt(Token::RightBrace),
+            decode_chunk("{([(<{}[<>[]}>{[]{[(<()>")
+        );
+        assert_eq!(
+            DecoderResult::Corrupt(Token::RightParen),
+            decode_chunk("[[<[([]))<([[{}[[()]]]")
+        );
+        assert_eq!(
+            DecoderResult::Corrupt(Token::RightBracket),
+            decode_chunk("[{[{({}]{}}([{[{{{}}([]")
+        );
+        assert_eq!(
+            DecoderResult::Corrupt(Token::RightParen),
+            decode_chunk("[<(<(<(<{}))><([]([]()")
+        );
     }
 
     #[test]
