@@ -129,7 +129,6 @@ fn score_2nd(lines: &[String]) -> u64 {
 
     // Sort all scores
     scores.sort();
-    println!("SCORES: {:?}", scores);
 
     // Find the middle score
     let index = scores.len() / 2;
@@ -137,7 +136,7 @@ fn score_2nd(lines: &[String]) -> u64 {
     scores[index]
 }
 
-/// Decodes the chunk and returns true if pairs match fully
+/// Decodes the chunk, returns a result representing decode state
 fn decode_chunk(chunk: &str) -> DecoderResult {
     fn missing_tokens(list: &[Token]) -> String {
         list.iter().rev().map(|t| t.opposite().as_char()).join("")
