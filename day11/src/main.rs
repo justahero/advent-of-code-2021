@@ -1,22 +1,27 @@
+use std::fmt::Display;
+
 use itertools::Itertools;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Grid {
-    pub width: usize,
-    pub height: usize,
-    pub fields: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub fields: Vec<u16>,
 }
 
-impl Grid {
-    pub fn empty(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-            fields: vec![0; (width * height) as usize],
-        }
-    }
+const NEIGHBORS: [(i32, i32); 8] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+];
 
-    pub fn new(width: usize, height: usize, fields: Vec<u8>) -> Self {
+impl Grid {
+    pub fn new(width: u32, height: u32, fields: Vec<u16>) -> Self {
         Self {
             width,
             height,
@@ -24,16 +29,87 @@ impl Grid {
         }
     }
 
-    /// Advance the grid by a single step
-    pub fn single_step(&self) -> Self {
-        let mut result = Grid::empty(self.width, self.height);
-
-        result
+    /// Get the energy level of a field if available
+    pub fn get(&self, x: u32, y: u32) -> u16 {
+        assert!(x < self.width);
+        assert!(y < self.height);
+        self.fields[(y * self.width + x) as usize]
     }
 
-    /// Advances the grid by a number of steps
-    pub fn steps(&self, count: u32) -> Self {
-        self.clone()
+    pub fn inc(&mut self, x: u32, y: u32, allow: bool) {
+        assert!(x < self.width);
+        assert!(y < self.height);
+        let value = &mut self.fields[(y * self.width + x) as usize];
+        if *value > 0_u16 || allow {
+            *value += 1;
+        }
+    }
+
+    /// Reset the field after a flash back to energy level 0
+    pub fn set_zero(&mut self, x: u32, y: u32) {
+        assert!(x < self.width);
+        assert!(y < self.height);
+        *(&mut self.fields[(y * self.width + x) as usize]) = 0;
+    }
+
+    /// Advance the grid by a single step, returns the new grid and the number of flashes
+    pub fn single_step(&self) -> (Self, u32) {
+        let mut result = self.clone();
+        let mut flashes = 0;
+
+        // Increase all fields by one
+        for y in 0..self.height {
+            for x in 0..self.width {
+                result.inc(x, y, true);
+            }
+        }
+
+        loop {
+            let mut flash_happened = false;
+            for y in 0..self.height {
+                for x in 0..self.width {
+                    let value = result.get(x, y);
+                    if value > 9 {
+                        result.set_zero(x, y);
+                        flash_happened = true;
+                        flashes += 1;
+
+                        // check all neighbors
+                        for &(nx, ny) in NEIGHBORS.iter() {
+                            let nx = nx + x as i32;
+                            let ny = ny + y as i32;
+                            if 0 <= nx && nx < self.width as i32 && 0 <= ny && ny < self.height as i32 {
+                                result.inc(nx as u32, ny as u32, false);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // return if no flash happened
+            if !flash_happened {
+                break;
+            }
+        }
+
+        (result, flashes)
+    }
+
+    /// Advances the grid by a number of steps, returns the resulting grid & number of observed flashes
+    pub fn steps(&self, count: u32) -> (Grid, u32) {
+        (0..count).fold((self.clone(), 0), |(grid, flashes), _| {
+            let (grid, new_flashes) = grid.single_step();
+            (grid, flashes + new_flashes)
+        })
+    }
+}
+
+impl Display for Grid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for chunk in self.fields.chunks(self.width as usize) {
+            writeln!(f, "{:?}", chunk)?;
+        }
+        Ok(())
     }
 }
 
@@ -43,7 +119,7 @@ fn parse_input(input: &str) -> Grid {
     let fields = lines
         .map(|line| {
             line.chars()
-                .map(|val| val.to_digit(10).unwrap() as u8)
+                .map(|val| val.to_digit(10).unwrap() as u16)
                 .collect_vec()
         })
         .collect::<Vec<_>>();
@@ -53,7 +129,7 @@ fn parse_input(input: &str) -> Grid {
 
     let fields = fields.iter().flatten().cloned().collect_vec();
 
-    Grid::new(width, height, fields)
+    Grid::new(width as u32, height as u32, fields)
 }
 
 fn main() {
@@ -70,6 +146,9 @@ fn main() {
         2678227325
     "#;
     let grid = parse_input(input);
+
+    let (_, flashes) = grid.steps(100);
+    dbg!(flashes);
 }
 
 #[cfg(test)]
@@ -97,8 +176,9 @@ mod tests {
     }
 
     #[test]
-    fn check_grid_after_steps() {
-        let expected_grid = parse_input(r#"
+    fn check_grid_after_single_step() {
+        let expected_grid = parse_input(
+            r#"
             6594254334
             3856965822
             6375667284
@@ -109,14 +189,47 @@ mod tests {
             7993992245
             5957959665
             6394862637
-        "#);
+        "#,
+        );
         let grid = parse_input(INPUT);
-        assert_eq!(expected_grid, grid.single_step());
+        assert_eq!((expected_grid, 0), grid.single_step());
+    }
+
+    #[test]
+    fn check_grid_after_flashes() {
+        let grid = parse_input(
+            r#"
+            6594254334
+            3856965822
+            6375667284
+            7252447257
+            7468496589
+            5278635756
+            3287952832
+            7993992245
+            5957959665
+            6394862637
+        "#,
+        );
+        let expected = parse_input(r#"
+            8807476555
+            5089087054
+            8597889608
+            8485769600
+            8700908800
+            6600088989
+            6800005943
+            0000007456
+            9000000876
+            8700006848
+        "#);
+        assert_eq!((expected, 35), grid.single_step());
     }
 
     #[test]
     fn check_grid_after_10_steps() {
-        let expected_grid = parse_input(r#"
+        let expected_grid = parse_input(
+            r#"
             0481112976
             0031112009
             0041112504
@@ -127,8 +240,29 @@ mod tests {
             5532252350
             0532250600
             0032240000
-        "#);
+        "#,
+        );
         let grid = parse_input(INPUT);
-        assert_eq!(expected_grid, grid.steps(10));
+        assert_eq!((expected_grid, 204), grid.steps(10));
+    }
+
+    #[test]
+    fn check_grid_after_100_steps() {
+        let expected_grid = parse_input(
+            r#"
+            0397666866
+            0749766918
+            0053976933
+            0004297822
+            0004229892
+            0053222877
+            0532222966
+            9322228966
+            7922286866
+            6789998766
+        "#,
+        );
+        let grid = parse_input(INPUT);
+        assert_eq!((expected_grid, 1656), grid.steps(100));
     }
 }
