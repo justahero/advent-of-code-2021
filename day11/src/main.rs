@@ -83,7 +83,11 @@ impl Grid {
                         for &(nx, ny) in NEIGHBORS.iter() {
                             let nx = nx + x as i32;
                             let ny = ny + y as i32;
-                            if 0 <= nx && nx < self.width as i32 && 0 <= ny && ny < self.height as i32 {
+                            if 0 <= nx
+                                && nx < self.width as i32
+                                && 0 <= ny
+                                && ny < self.height as i32
+                            {
                                 result.inc(nx as u32, ny as u32, false);
                             }
                         }
@@ -110,13 +114,15 @@ impl Grid {
 
     /// Determines when all octopuses are in sync, returns the step when this first occurs.
     pub fn find_synched_step(&self) -> u32 {
-        let (_, steps) = (0_u32..).fold_while((self.clone(), 0_u32), |(grid, step), _| {
-            let (grid, _) = grid.single_step();
-            if grid.is_synched() {
-                return itertools::FoldWhile::Done((grid, step + 1));
-            }
-            itertools::FoldWhile::Continue((grid, step + 1))
-        }).into_inner();
+        let (_, steps) = (0_u32..)
+            .fold_while((self.clone(), 0_u32), |(grid, step), _| {
+                let (grid, _) = grid.single_step();
+                if grid.is_synched() {
+                    return itertools::FoldWhile::Done((grid, step + 1));
+                }
+                itertools::FoldWhile::Continue((grid, step + 1))
+            })
+            .into_inner();
         steps
     }
 }
@@ -231,7 +237,8 @@ mod tests {
             6394862637
         "#,
         );
-        let expected = parse_input(r#"
+        let expected = parse_input(
+            r#"
             8807476555
             5089087054
             8597889608
@@ -242,7 +249,8 @@ mod tests {
             0000007456
             9000000876
             8700006848
-        "#);
+        "#,
+        );
         assert_eq!((expected, 35), grid.single_step());
     }
 
