@@ -29,6 +29,11 @@ impl Grid {
         }
     }
 
+    /// Returns true when all fields are zero
+    pub fn is_synched(&self) -> bool {
+        self.fields.iter().all(|&val| val == 0)
+    }
+
     /// Get the energy level of a field if available
     pub fn get(&self, x: u32, y: u32) -> u16 {
         assert!(x < self.width);
@@ -102,6 +107,18 @@ impl Grid {
             (grid, flashes + new_flashes)
         })
     }
+
+    /// Determines when all octopuses are in sync, returns the step when this first occurs.
+    pub fn find_synched_step(&self) -> u32 {
+        let (_, steps) = (0_u32..).fold_while((self.clone(), 0_u32), |(grid, step), _| {
+            let (grid, _) = grid.single_step();
+            if grid.is_synched() {
+                return itertools::FoldWhile::Done((grid, step + 1));
+            }
+            itertools::FoldWhile::Continue((grid, step + 1))
+        }).into_inner();
+        steps
+    }
 }
 
 impl Display for Grid {
@@ -149,6 +166,9 @@ fn main() {
 
     let (_, flashes) = grid.steps(100);
     dbg!(flashes);
+
+    let step = grid.find_synched_step();
+    dbg!(step);
 }
 
 #[cfg(test)]
@@ -264,5 +284,11 @@ mod tests {
         );
         let grid = parse_input(INPUT);
         assert_eq!((expected_grid, 1656), grid.steps(100));
+    }
+
+    #[test]
+    fn test_find_synched_step() {
+        let grid = parse_input(INPUT);
+        assert_eq!(195, grid.find_synched_step());
     }
 }
