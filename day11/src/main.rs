@@ -116,13 +116,12 @@ impl Grid {
     pub fn find_synched_step(&self) -> u32 {
         let mut grid = self.clone();
         let mut step = 0;
-        loop {
+
+        while !grid.is_synched() {
             grid.single_step();
             step += 1;
-            if grid.is_synched() {
-                break;
-            }
         }
+
         step
     }
 }
