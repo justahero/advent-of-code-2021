@@ -46,13 +46,11 @@ impl Grid {
         self.fields[(y * self.width + x) as usize]
     }
 
-    pub fn inc(&mut self, x: u32, y: u32, allow: bool) {
+    pub fn inc(&mut self, x: u32, y: u32) {
         assert!(x < self.width);
         assert!(y < self.height);
         let value = &mut self.fields[(y * self.width + x) as usize];
-        if *value > 0 || allow {
-            *value += 1;
-        }
+        *value += 1;
     }
 
     /// Reset the field after a flash back to energy level 0
@@ -67,7 +65,7 @@ impl Grid {
         // Increase all fields by one
         for y in 0..self.height {
             for x in 0..self.width {
-                self.inc(x, y, true);
+                self.inc(x, y);
             }
         }
 
@@ -89,7 +87,9 @@ impl Grid {
                                 && 0 <= ny
                                 && ny < self.height as i32
                             {
-                                self.inc(nx as u32, ny as u32, false);
+                                if self.get(nx as u32, ny as u32) > 0 {
+                                    self.inc(nx as u32, ny as u32);
+                                }
                             }
                         }
                     }
