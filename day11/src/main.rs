@@ -6,7 +6,7 @@ use itertools::Itertools;
 struct Grid {
     pub width: u32,
     pub height: u32,
-    pub fields: Vec<u16>,
+    pub fields: Vec<u8>,
 }
 
 const NEIGHBORS: [(i32, i32); 8] = [
@@ -21,7 +21,7 @@ const NEIGHBORS: [(i32, i32); 8] = [
 ];
 
 impl Grid {
-    pub fn new(width: u32, height: u32, fields: Vec<u16>) -> Self {
+    pub fn new(width: u32, height: u32, fields: Vec<u8>) -> Self {
         Self {
             width,
             height,
@@ -35,7 +35,7 @@ impl Grid {
     }
 
     /// Get the energy level of a field if available
-    pub fn get(&self, x: u32, y: u32) -> u16 {
+    pub fn get(&self, x: u32, y: u32) -> u8 {
         assert!(x < self.width);
         assert!(y < self.height);
         self.fields[(y * self.width + x) as usize]
@@ -45,7 +45,7 @@ impl Grid {
         assert!(x < self.width);
         assert!(y < self.height);
         let value = &mut self.fields[(y * self.width + x) as usize];
-        if *value > 0_u16 || allow {
+        if *value > 0 || allow {
             *value += 1;
         }
     }
@@ -136,7 +136,7 @@ fn parse_input(input: &str) -> Grid {
     let fields = lines
         .map(|line| {
             line.chars()
-                .map(|val| val.to_digit(10).unwrap() as u16)
+                .filter_map(|val| format!("{}", val).parse::<u8>().ok())
                 .collect_vec()
         })
         .collect::<Vec<_>>();
