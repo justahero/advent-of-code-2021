@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Grid {
     pub width: usize,
     pub height: usize,
@@ -12,7 +12,7 @@ impl Grid {
         Self {
             width,
             height,
-            fields: Vec::with_capacity((width * height) as usize),
+            fields: vec![0; (width * height) as usize],
         }
     }
 
@@ -23,19 +23,37 @@ impl Grid {
             fields,
         }
     }
+
+    /// Advance the grid by a single step
+    pub fn single_step(&self) -> Self {
+        let mut result = Grid::empty(self.width, self.height);
+
+        result
+    }
+
+    /// Advances the grid by a number of steps
+    pub fn steps(&self, count: u32) -> Self {
+        self.clone()
+    }
 }
 
 fn parse_input(input: &str) -> Grid {
     let lines = input.lines().map(str::trim).filter(|line| !line.is_empty());
 
     let fields = lines
-        .map(|line| line.chars().map(|val| val.to_digit(10).unwrap() as u8).collect_vec())
+        .map(|line| {
+            line.chars()
+                .map(|val| val.to_digit(10).unwrap() as u8)
+                .collect_vec()
+        })
         .collect::<Vec<_>>();
 
     let width = fields[0].len();
     let height = fields.len();
 
-    Grid::new(10, 10, Vec::new())
+    let fields = fields.iter().flatten().cloned().collect_vec();
+
+    Grid::new(width, height, fields)
 }
 
 fn main() {
@@ -51,6 +69,7 @@ fn main() {
         6152721415
         2678227325
     "#;
+    let grid = parse_input(input);
 }
 
 #[cfg(test)]
@@ -79,6 +98,37 @@ mod tests {
 
     #[test]
     fn check_grid_after_steps() {
+        let expected_grid = parse_input(r#"
+            6594254334
+            3856965822
+            6375667284
+            7252447257
+            7468496589
+            5278635756
+            3287952832
+            7993992245
+            5957959665
+            6394862637
+        "#);
         let grid = parse_input(INPUT);
+        assert_eq!(expected_grid, grid.single_step());
+    }
+
+    #[test]
+    fn check_grid_after_10_steps() {
+        let expected_grid = parse_input(r#"
+            0481112976
+            0031112009
+            0041112504
+            0081111406
+            0099111306
+            0093511233
+            0442361130
+            5532252350
+            0532250600
+            0032240000
+        "#);
+        let grid = parse_input(INPUT);
+        assert_eq!(expected_grid, grid.steps(10));
     }
 }
