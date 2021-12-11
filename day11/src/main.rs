@@ -31,7 +31,12 @@ impl Grid {
 
     /// Returns true when all fields are zero
     pub fn is_synched(&self) -> bool {
-        self.fields.iter().all(|&val| val == 0)
+        self.flashes() == self.width as usize * self.height as usize
+    }
+
+    /// Returns the number of flashes
+    pub fn flashes(&self) -> usize {
+        self.fields.iter().filter(|&&val| val == 0).count()
     }
 
     /// Get the energy level of a field if available
@@ -51,21 +56,18 @@ impl Grid {
     }
 
     /// Reset the field after a flash back to energy level 0
-    pub fn set_zero(&mut self, x: u32, y: u32) {
+    pub fn reset(&mut self, x: u32, y: u32) {
         assert!(x < self.width);
         assert!(y < self.height);
         *(&mut self.fields[(y * self.width + x) as usize]) = 0;
     }
 
     /// Advance the grid by a single step, returns the new grid and the number of flashes
-    pub fn single_step(&self) -> (Self, u32) {
-        let mut result = self.clone();
-        let mut flashes = 0;
-
+    pub fn single_step(&mut self) {
         // Increase all fields by one
         for y in 0..self.height {
             for x in 0..self.width {
-                result.inc(x, y, true);
+                self.inc(x, y, true);
             }
         }
 
@@ -73,11 +75,10 @@ impl Grid {
             let mut flash_happened = false;
             for y in 0..self.height {
                 for x in 0..self.width {
-                    let value = result.get(x, y);
+                    let value = self.get(x, y);
                     if value > 9 {
-                        result.set_zero(x, y);
+                        self.reset(x, y);
                         flash_happened = true;
-                        flashes += 1;
 
                         // check all neighbors
                         for &(nx, ny) in NEIGHBORS.iter() {
@@ -88,7 +89,7 @@ impl Grid {
                                 && 0 <= ny
                                 && ny < self.height as i32
                             {
-                                result.inc(nx as u32, ny as u32, false);
+                                self.inc(nx as u32, ny as u32, false);
                             }
                         }
                     }
@@ -100,30 +101,29 @@ impl Grid {
                 break;
             }
         }
-
-        (result, flashes)
     }
 
     /// Advances the grid by a number of steps, returns the resulting grid & number of observed flashes
     pub fn steps(&self, count: u32) -> (Grid, u32) {
-        (0..count).fold((self.clone(), 0), |(grid, flashes), _| {
-            let (grid, new_flashes) = grid.single_step();
-            (grid, flashes + new_flashes)
+        (0..count).fold((self.clone(), 0), |(mut grid, flashes), _| {
+            grid.single_step();
+            let next_flashes = grid.flashes() as u32;
+            (grid, flashes + next_flashes)
         })
     }
 
     /// Determines when all octopuses are in sync, returns the step when this first occurs.
     pub fn find_synched_step(&self) -> u32 {
-        let (_, steps) = (0_u32..)
-            .fold_while((self.clone(), 0_u32), |(grid, step), _| {
-                let (grid, _) = grid.single_step();
-                if grid.is_synched() {
-                    return itertools::FoldWhile::Done((grid, step + 1));
-                }
-                itertools::FoldWhile::Continue((grid, step + 1))
-            })
-            .into_inner();
-        steps
+        let mut grid = self.clone();
+        let mut step = 0;
+        loop {
+            grid.single_step();
+            step += 1;
+            if grid.is_synched() {
+                break;
+            }
+        }
+        step
     }
 }
 
@@ -217,13 +217,15 @@ mod tests {
             6394862637
         "#,
         );
-        let grid = parse_input(INPUT);
-        assert_eq!((expected_grid, 0), grid.single_step());
+        let mut grid = parse_input(INPUT);
+        grid.single_step();
+        assert_eq!(expected_grid, grid);
+        assert_eq!(0, grid.flashes());
     }
 
     #[test]
     fn check_grid_after_flashes() {
-        let grid = parse_input(
+        let mut grid = parse_input(
             r#"
             6594254334
             3856965822
@@ -251,7 +253,9 @@ mod tests {
             8700006848
         "#,
         );
-        assert_eq!((expected, 35), grid.single_step());
+        grid.single_step();
+        assert_eq!(expected, grid);
+        assert_eq!(35, grid.flashes());
     }
 
     #[test]
