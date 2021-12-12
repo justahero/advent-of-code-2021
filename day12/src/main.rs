@@ -1,16 +1,28 @@
-use std::{cmp::Ordering, collections::{HashMap, VecDeque}};
+use std::{cmp::Ordering, collections::HashMap, fmt::{Debug, Display}};
 
 use itertools::Itertools;
 
 /// A single node in the graph, can be shared by multiple edges
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct Node {
     pub value: String,
 }
 
+impl Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.value)
+    }
+}
+
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.value)
+    }
+}
+
 impl Node {
-    pub fn new(value: String) -> Self {
-        Node { value }
+    pub fn new(value: &str) -> Self {
+        Node { value: value.to_string() }
     }
 
     pub fn small(&self) -> bool {
@@ -43,50 +55,41 @@ impl Graph {
     }
 
     /// Adds a new edge to the graph
-    pub fn add_edge(&mut self, left: Node, right: Node) {
-        self.map
-            .entry(left.clone())
-            .or_insert(Vec::new())
-            .push(right.clone());
-        self.map
-            .entry(right.clone())
-            .or_insert(Vec::new())
-            .push(left.clone());
+    pub fn add_edges(&mut self, left: Node, right: Node) {
+        for (x, y) in [(&left, &right), (&right, &left)] {
+            // ignore paths that start with "end" or end with "start"
+            if !x.is_end() && !y.is_start() {
+                self.map
+                    .entry(x.clone())
+                    .or_insert(Vec::new())
+                    .push(y.clone());
+            }
+        }
     }
 
-    /// Count all edges
-    pub fn count_edges(&self) -> usize {
-        self.map
-            .iter()
-            .fold(0_usize, |count, (_key, edges)| count + edges.len())
-    }
-
-    /// Traverse all paths, returns the number of paths found
     pub fn count_all_paths(&self) -> usize {
-        let mut count = 0_usize;
-        let mut visited: Vec<&Node> = Vec::new();
-        let mut nodes: VecDeque<&Node> = VecDeque::new();
+        Self::find_paths(vec![Node::new("start")], &self.map).len()
+    }
 
-        let start_node = self
-            .map
-            .keys()
-            .find(|&key| key.is_start()).expect("No start node");
+    /// Traverse all paths via DFS, return the list of paths found
+    pub fn find_paths(visited: Vec<Node>, edges: &HashMap<Node, Vec<Node>>) -> Vec<Vec<Node>> {
+        let last_node = visited.last().expect("No last node found");
+        if last_node.is_end() {
+            vec![visited]
+        } else {
+            let mut results: Vec<Vec<Node>> = Vec::new();
 
-        nodes.push_back(start_node);
-        visited.push(start_node);
-
-        while let Some(node) = nodes.pop_front() {
-            // If at the end, finish the path
-            if node.is_end() {
-                count += 1;
-                break;
+            for next_node in edges.get(last_node).unwrap() {
+                if !visited.contains(next_node) || next_node.big() {
+                    // copy current path for next step
+                    let mut next_visited = visited.clone();
+                    next_visited.push(next_node.clone());
+                    results.append(&mut Self::find_paths(next_visited, edges));
+                }
             }
 
-            // get all next edges
-            let edges = &self.map[node];
+            results
         }
-
-        count
     }
 }
 
@@ -100,13 +103,11 @@ fn parse_input(input: &str) -> Graph {
     // parse all nodes
     let graph = lines.iter().fold(Graph::new(), |mut graph, &line| {
         let (left, right) = line.split_once('-').expect("Failed to split");
-        let left = Node::new(left.to_string());
-        let right = Node::new(right.to_string());
+        let left = Node::new(left);
+        let right = Node::new(right);
 
         // ignore all end paths, we cannot move from there
-        if !left.is_end() {
-            graph.add_edge(left, right);
-        }
+        graph.add_edges(left, right);
         graph
     });
 
@@ -138,9 +139,18 @@ mod tests {
     "#;
 
     #[test]
-    fn build_graph() {
-        let graph = parse_input(INPUT);
-        assert_eq!(20, graph.count_edges());
+    fn traverse_minimal_graph() {
+        let input = r#"
+            start-A
+            start-b
+            A-c
+            A-b
+            b-d
+            A-end
+            b-end
+        "#;
+        let graph = parse_input(input);
+        assert_eq!(10, graph.count_all_paths());
     }
 
     #[test]
