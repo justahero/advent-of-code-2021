@@ -76,7 +76,14 @@ impl Graph {
         visited.push(start_node);
 
         while let Some(node) = nodes.pop_front() {
+            // If at the end, finish the path
+            if node.is_end() {
+                count += 1;
+                break;
+            }
+
             // get all next edges
+            let edges = &self.map[node];
         }
 
         count
@@ -95,7 +102,11 @@ fn parse_input(input: &str) -> Graph {
         let (left, right) = line.split_once('-').expect("Failed to split");
         let left = Node::new(left.to_string());
         let right = Node::new(right.to_string());
-        graph.add_edge(left, right);
+
+        // ignore all end paths, we cannot move from there
+        if !left.is_end() {
+            graph.add_edge(left, right);
+        }
         graph
     });
 
@@ -135,5 +146,6 @@ mod tests {
     #[test]
     fn traverses_and_counts_all_paths() {
         let graph = parse_input(INPUT);
+        assert_eq!(19, graph.count_all_paths());
     }
 }
