@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::{HashMap, VecDeque}};
 
 use itertools::Itertools;
 
@@ -13,6 +13,14 @@ impl Node {
         Node { value }
     }
 
+    pub fn small(&self) -> bool {
+        self.value.chars().nth(0).unwrap().is_lowercase()
+    }
+
+    pub fn big(&self) -> bool {
+        !self.small()
+    }
+
     pub fn is_start(&self) -> bool {
         self.value.cmp(&String::from("start")) == Ordering::Equal
     }
@@ -22,7 +30,7 @@ impl Node {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Graph {
     pub map: HashMap<Node, Vec<Node>>,
 }
@@ -52,6 +60,27 @@ impl Graph {
             .iter()
             .fold(0_usize, |count, (_key, edges)| count + edges.len())
     }
+
+    /// Traverse all paths, returns the number of paths found
+    pub fn count_all_paths(&self) -> usize {
+        let mut count = 0_usize;
+        let mut visited: Vec<&Node> = Vec::new();
+        let mut nodes: VecDeque<&Node> = VecDeque::new();
+
+        let start_node = self
+            .map
+            .keys()
+            .find(|&key| key.is_start()).expect("No start node");
+
+        nodes.push_back(start_node);
+        visited.push(start_node);
+
+        while let Some(node) = nodes.pop_front() {
+            // get all next edges
+        }
+
+        count
+    }
 }
 
 fn parse_input(input: &str) -> Graph {
@@ -75,12 +104,15 @@ fn parse_input(input: &str) -> Graph {
 
 fn main() {
     let graph = parse_input(include_str!("input.txt"));
+    let count = graph.count_all_paths();
+    dbg!(count);
 }
 
 #[cfg(test)]
 mod tests {
     use crate::parse_input;
 
+    // dc, end, start, HN, kj, LN, sa
     const INPUT: &str = r#"
         dc-end
         HN-start
