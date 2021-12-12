@@ -1,32 +1,30 @@
-use std::{cmp::Ordering, collections::HashMap, fmt::{Debug, Display}};
+use std::{collections::HashMap, fmt::{Debug, Display}};
 
 use itertools::Itertools;
 
 /// A single node in the graph, can be shared by multiple edges
 #[derive(Clone, Hash, PartialEq, Eq)]
-struct Node {
-    pub value: String,
-}
+struct Node(String);
 
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({})", self.value)
+        write!(f, "({})", self.0)
     }
 }
 
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({})", self.value)
+        write!(f, "({})", self.0)
     }
 }
 
 impl Node {
-    pub fn new(value: &str) -> Self {
-        Node { value: value.to_string() }
+    pub fn new(value: String) -> Self {
+        Node(value)
     }
 
     pub fn small(&self) -> bool {
-        self.value.chars().nth(0).unwrap().is_lowercase()
+        self.0.chars().nth(0).unwrap().is_lowercase()
     }
 
     pub fn big(&self) -> bool {
@@ -34,11 +32,11 @@ impl Node {
     }
 
     pub fn is_start(&self) -> bool {
-        self.value.cmp(&String::from("start")) == Ordering::Equal
+        &self.0 == "start"
     }
 
     pub fn is_end(&self) -> bool {
-        self.value.cmp(&String::from("end")) == Ordering::Equal
+        &self.0 == "end"
     }
 }
 
@@ -74,7 +72,7 @@ impl Graph {
     }
 
     pub fn count_all_paths(&self, visit_twice: bool) -> usize {
-        Self::find_paths(vec![Node::new("start")], &self.map, visit_twice).len()
+        Self::find_paths(vec![Node::new("start".to_string())], &self.map, visit_twice).len()
     }
 
     /// Traverse all paths via DFS, return the list of paths found
@@ -110,7 +108,7 @@ fn parse_input(input: &str) -> Graph {
     // parse all nodes
     let graph = lines.iter().fold(Graph::new(), |mut graph, &line| {
         let (left, right) = line.split_once('-').expect("Failed to split");
-        graph.add_edges(Node::new(left), Node::new(right));
+        graph.add_edges(Node::new(left.to_string()), Node::new(right.to_string()));
         graph
     });
 
