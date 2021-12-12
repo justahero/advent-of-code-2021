@@ -42,6 +42,12 @@ impl Node {
     }
 }
 
+/// Returns true if all small cave nodes in the given list are unique
+fn is_unique(list: &[Node]) -> bool {
+    let list = list.iter().filter(|node| node.small()).collect_vec();
+    list.len() == list.iter().unique().count()
+}
+
 #[derive(Debug, Clone)]
 struct Graph {
     pub map: HashMap<Node, Vec<Node>>,
@@ -67,24 +73,25 @@ impl Graph {
         }
     }
 
-    pub fn count_all_paths(&self) -> usize {
-        Self::find_paths(vec![Node::new("start")], &self.map).len()
+    pub fn count_all_paths(&self, visit_twice: bool) -> usize {
+        Self::find_paths(vec![Node::new("start")], &self.map, visit_twice).len()
     }
 
     /// Traverse all paths via DFS, return the list of paths found
-    pub fn find_paths(visited: Vec<Node>, edges: &HashMap<Node, Vec<Node>>) -> Vec<Vec<Node>> {
+    pub fn find_paths(visited: Vec<Node>, edges: &HashMap<Node, Vec<Node>>, visit_twice: bool) -> Vec<Vec<Node>> {
         let last_node = visited.last().expect("No last node found");
         if last_node.is_end() {
             vec![visited]
         } else {
-            let mut results: Vec<Vec<Node>> = Vec::new();
+            let mut results = Vec::new();
 
-            for next_node in edges.get(last_node).unwrap() {
-                if !visited.contains(next_node) || next_node.big() {
+            let can_visit_twice = visit_twice && is_unique(&visited);
+            for next_node in edges.get(last_node).expect("No edges found for node") {
+                if !visited.contains(next_node) || next_node.big() || can_visit_twice {
                     // copy current path for next step
                     let mut next_visited = visited.clone();
                     next_visited.push(next_node.clone());
-                    results.append(&mut Self::find_paths(next_visited, edges));
+                    results.append(&mut Self::find_paths(next_visited, edges, visit_twice));
                 }
             }
 
@@ -103,11 +110,7 @@ fn parse_input(input: &str) -> Graph {
     // parse all nodes
     let graph = lines.iter().fold(Graph::new(), |mut graph, &line| {
         let (left, right) = line.split_once('-').expect("Failed to split");
-        let left = Node::new(left);
-        let right = Node::new(right);
-
-        // ignore all end paths, we cannot move from there
-        graph.add_edges(left, right);
+        graph.add_edges(Node::new(left), Node::new(right));
         graph
     });
 
@@ -116,7 +119,10 @@ fn parse_input(input: &str) -> Graph {
 
 fn main() {
     let graph = parse_input(include_str!("input.txt"));
-    let count = graph.count_all_paths();
+    let count = graph.count_all_paths(false);
+    dbg!(count);
+
+    let count = graph.count_all_paths(true);
     dbg!(count);
 }
 
@@ -150,12 +156,14 @@ mod tests {
             b-end
         "#;
         let graph = parse_input(input);
-        assert_eq!(10, graph.count_all_paths());
+        assert_eq!(10, graph.count_all_paths(false));
+        assert_eq!(36, graph.count_all_paths(true));
     }
 
     #[test]
     fn traverses_and_counts_all_paths() {
         let graph = parse_input(INPUT);
-        assert_eq!(19, graph.count_all_paths());
+        assert_eq!(19, graph.count_all_paths(false));
+        assert_eq!(103, graph.count_all_paths(true));
     }
 }
