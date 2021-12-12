@@ -74,6 +74,8 @@ impl Grid {
             for y in 0..self.height {
                 for x in 0..self.width {
                     let value = self.get(x, y);
+
+                    // TODO refactor the following block
                     if value > 9 {
                         self.reset(x, y);
                         flash_happened = true;

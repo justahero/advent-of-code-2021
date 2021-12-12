@@ -1,9 +1,9 @@
-use std::{cmp::Ordering, rc::Rc};
+use std::{cmp::Ordering, collections::HashMap};
 
 use itertools::Itertools;
 
 /// A single node in the graph, can be shared by multiple edges
-#[derive(Debug, Clone, Hash, PartialEq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Node {
     pub value: String,
 }
@@ -23,24 +23,34 @@ impl Node {
 }
 
 #[derive(Debug)]
-struct Edge {
-    pub nodes: [Rc<Node>; 2],
-}
-
-impl Edge {
-    pub fn new(left: Rc<Node>, right: Rc<Node>) -> Self {
-        Self { nodes: [left, right] }
-    }
-}
-
 struct Graph {
-    // pub start_nodes: Vec<u32>,
-    pub edges: Vec<Edge>,
+    pub map: HashMap<Node, Vec<Node>>,
 }
 
 impl Graph {
-    pub fn new(edges: Vec<Edge>) -> Self {
-        Self { edges }
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+        }
+    }
+
+    /// Adds a new edge to the graph
+    pub fn add_edge(&mut self, left: Node, right: Node) {
+        self.map
+            .entry(left.clone())
+            .or_insert(Vec::new())
+            .push(right.clone());
+        self.map
+            .entry(right.clone())
+            .or_insert(Vec::new())
+            .push(left.clone());
+    }
+
+    /// Count all edges
+    pub fn count_edges(&self) -> usize {
+        self.map
+            .iter()
+            .fold(0_usize, |count, (_key, edges)| count + edges.len())
     }
 }
 
@@ -51,17 +61,16 @@ fn parse_input(input: &str) -> Graph {
         .filter(|&line| !line.is_empty())
         .collect_vec();
 
-    // find all nodes / edges, then link them in the graph
-    let edges = lines
-        .iter()
-        .filter_map(|&line| line.split_once('-'))
-        .map(|(left, right)| {
-            (Rc::new(Node::new(left.to_string())), Rc::new(Node::new(right.to_string())))
-        })
-        .map(|(left, right)| Edge::new(left, right))
-        .collect_vec();
+    // parse all nodes
+    let graph = lines.iter().fold(Graph::new(), |mut graph, &line| {
+        let (left, right) = line.split_once('-').expect("Failed to split");
+        let left = Node::new(left.to_string());
+        let right = Node::new(right.to_string());
+        graph.add_edge(left, right);
+        graph
+    });
 
-    Graph::new(edges)
+    graph
 }
 
 fn main() {
@@ -88,6 +97,11 @@ mod tests {
     #[test]
     fn build_graph() {
         let graph = parse_input(INPUT);
-        assert_eq!(10, graph.edges.len());
+        assert_eq!(20, graph.count_edges());
+    }
+
+    #[test]
+    fn traverses_and_counts_all_paths() {
+        let graph = parse_input(INPUT);
     }
 }
