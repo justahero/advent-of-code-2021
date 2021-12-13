@@ -1,16 +1,24 @@
+use std::fmt::Display;
+
 use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Point {
     pub x: u16,
     pub y: u16,
+}
+
+impl Point {
+    pub fn new(x: u16, y: u16) -> Self {
+        Self { x, y }
+    }
 }
 
 impl From<&str> for Point {
     fn from(line: &str) -> Self {
         let (x, y) = line.split_once(',').expect("Failed to parse point.");
         let (x, y) = (x.parse::<u16>().unwrap(), y.parse::<u16>().unwrap());
-        Self { x, y }
+        Self::new(x, y)
     }
 }
 
@@ -40,6 +48,31 @@ struct Sheet {
     pub folds: Vec<Fold>,
 }
 
+impl Display for Sheet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (Point { y: miny, .. }, Point { y: maxy, .. }) =
+            self.points.iter().minmax().into_option().unwrap();
+
+        let maxx = self.points.iter().map(|point| point.x).max().unwrap();
+
+        for y in 0..=*maxy {
+            let line = (0..=maxx)
+                .into_iter()
+                .map(|x| {
+                    if self.points.contains(&Point::new(x, y)) {
+                        '#'
+                    } else {
+                        '.'
+                    }
+                })
+                .join("");
+
+            writeln!(f, "{}", line)?;
+        }
+        write!(f, "")
+    }
+}
+
 impl Sheet {
     pub fn new(points: Vec<Point>, folds: Vec<Fold>) -> Self {
         Self { points, folds }
@@ -50,8 +83,8 @@ impl Sheet {
         let points = Vec::new();
 
         match fold {
-            Fold::Horizontal(y) => {},
-            Fold::Vertical(x) => {},
+            Fold::Horizontal(y) => {}
+            Fold::Vertical(x) => {}
         }
 
         Self {
@@ -118,13 +151,8 @@ mod tests {
     #[test]
     fn check_parse_input() {
         let sheet = parse_input(INPUT);
+        println!("SHEET:\n{}", sheet);
         assert_eq!(18, sheet.points.len());
-        assert_eq!(
-            vec![
-                Fold::Horizontal(7),
-                Fold::Vertical(5),
-            ],
-            sheet.folds,
-        );
+        assert_eq!(vec![Fold::Horizontal(7), Fold::Vertical(5),], sheet.folds);
     }
 }
