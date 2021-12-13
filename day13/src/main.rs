@@ -14,7 +14,7 @@ impl From<&str> for Point {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 enum Fold {
     Horizontal(u16),
     Vertical(u16),
@@ -43,6 +43,21 @@ struct Sheet {
 impl Sheet {
     pub fn new(points: Vec<Point>, folds: Vec<Fold>) -> Self {
         Self { points, folds }
+    }
+
+    pub fn fold(&self) -> Self {
+        let fold = self.folds.first().unwrap();
+        let points = Vec::new();
+
+        match fold {
+            Fold::Horizontal(y) => {},
+            Fold::Vertical(x) => {},
+        }
+
+        Self {
+            points,
+            folds: self.folds[1..].iter().cloned().collect_vec(),
+        }
     }
 }
 
@@ -74,7 +89,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_input;
+    use crate::{parse_input, Fold};
 
     const INPUT: &str = r#"
         6,10
@@ -104,6 +119,12 @@ mod tests {
     fn check_parse_input() {
         let sheet = parse_input(INPUT);
         assert_eq!(18, sheet.points.len());
-        assert_eq!(2, sheet.folds.len());
+        assert_eq!(
+            vec![
+                Fold::Horizontal(7),
+                Fold::Vertical(5),
+            ],
+            sheet.folds,
+        );
     }
 }
