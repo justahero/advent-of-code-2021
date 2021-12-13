@@ -46,17 +46,13 @@ impl From<&str> for Fold {
 struct Sheet {
     pub points: Vec<Point>,
     pub folds: Vec<Fold>,
+    pub max: Point,
 }
 
 impl Display for Sheet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (Point { y: miny, .. }, Point { y: maxy, .. }) =
-            self.points.iter().minmax().into_option().unwrap();
-
-        let maxx = self.points.iter().map(|point| point.x).max().unwrap();
-
-        for y in 0..=*maxy {
-            let line = (0..=maxx)
+        for y in 0..=self.max.y {
+            let line = (0..=self.max.x)
                 .into_iter()
                 .map(|x| {
                     if self.points.contains(&Point::new(x, y)) {
@@ -75,7 +71,15 @@ impl Display for Sheet {
 
 impl Sheet {
     pub fn new(points: Vec<Point>, folds: Vec<Fold>) -> Self {
-        Self { points, folds }
+        // let (min_x, max_x) = points.iter().map(|p| p.x).minmax().into_option().unwrap();
+        let max_x = points.iter().map(|p| p.x).max().unwrap();
+        let max_y = points.iter().map(|p| p.y).max().unwrap();
+
+        Self {
+            points,
+            folds,
+            max: Point::new(max_x, max_y),
+        }
     }
 
     pub fn fold(&self) -> Self {
@@ -90,6 +94,7 @@ impl Sheet {
         Self {
             points,
             folds: self.folds[1..].iter().cloned().collect_vec(),
+            max: Point::new(0, 0),
         }
     }
 }
@@ -118,6 +123,7 @@ fn parse_input(input: &str) -> Sheet {
 
 fn main() {
     let sheet = parse_input(include_str!("input.txt"));
+    let sheet = sheet.fold();
 }
 
 #[cfg(test)]
