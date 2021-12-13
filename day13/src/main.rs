@@ -128,7 +128,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Fold};
+    use crate::{parse_input, Fold, Point};
 
     const INPUT: &str = r#"
         6,10
@@ -160,5 +160,6 @@ mod tests {
         println!("SHEET:\n{}", sheet);
         assert_eq!(18, sheet.points.len());
         assert_eq!(vec![Fold::Horizontal(7), Fold::Vertical(5),], sheet.folds);
+        assert_eq!(Point::new(10, 14), sheet.max);
     }
 }
