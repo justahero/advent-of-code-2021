@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use itertools::Itertools;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Point {
     pub x: u16,
     pub y: u16,
@@ -82,25 +82,38 @@ impl Sheet {
         }
     }
 
+    /// Folds one half of sheet onto the other half
+    ///
+    /// This maps the numbers from one axis back to the first half:
+    ///
+    /// 0  1  2  3  4  5  6 [7] 8  9 10 11 12 13 14
+    /// 0  1  2  3  4  5  6  7  6  5  4  3  2  1  0
+    ///
     pub fn fold(&self) -> Self {
-        let fold = self.folds.first().unwrap();
-        let points = Vec::new();
-
-        match fold {
-            Fold::Horizontal(y) => {}
-            Fold::Vertical(x) => {}
+        fn flip(val: u16, line: u16) -> u16 {
+            ((line as i32 + 1) - ((line as i32 + 1) - val as i32).abs()) as u16
         }
+
+        let max = match self.folds[0] {
+            Fold::Horizontal(y) => Point::new(self.max.x, y - 1),
+            Fold::Vertical(x) => Point::new(x - 1, self.max.y),
+        };
+
+        let points = self.points
+            .iter()
+            .map(|p| Point::new(flip(p.x, max.x), flip(p.y, max.y)))
+            .unique()
+            .collect_vec();
 
         Self {
             points,
             folds: self.folds[1..].iter().cloned().collect_vec(),
-            max: Point::new(0, 0),
+            max,
         }
     }
 }
 
 fn parse_input(input: &str) -> Sheet {
-    // parse all dots
     let mut points = Vec::new();
     let mut folds = Vec::new();
 
@@ -124,6 +137,7 @@ fn parse_input(input: &str) -> Sheet {
 fn main() {
     let sheet = parse_input(include_str!("input.txt"));
     let sheet = sheet.fold();
+    dbg!(sheet.points.len());
 }
 
 #[cfg(test)]
@@ -157,9 +171,17 @@ mod tests {
     #[test]
     fn check_parse_input() {
         let sheet = parse_input(INPUT);
-        println!("SHEET:\n{}", sheet);
         assert_eq!(18, sheet.points.len());
         assert_eq!(vec![Fold::Horizontal(7), Fold::Vertical(5),], sheet.folds);
         assert_eq!(Point::new(10, 14), sheet.max);
+    }
+
+    #[test]
+    fn fold_once() {
+        let sheet = parse_input(INPUT);
+        let sheet = sheet.fold();
+        assert_eq!(Point::new(10, 6), sheet.max);
+        assert_eq!(17, sheet.points.len());
+        assert_eq!(vec![Fold::Vertical(5)], sheet.folds);
     }
 }
