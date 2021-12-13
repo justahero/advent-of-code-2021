@@ -42,7 +42,7 @@ impl From<&str> for Fold {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Sheet {
     pub points: Vec<Point>,
     pub folds: Vec<Fold>,
@@ -111,6 +111,10 @@ impl Sheet {
             max,
         }
     }
+
+    pub fn fold_all(&self) -> Sheet {
+        self.folds.iter().fold(self.clone(), |result, _| result.fold())
+    }
 }
 
 fn parse_input(input: &str) -> Sheet {
@@ -138,6 +142,10 @@ fn main() {
     let sheet = parse_input(include_str!("input.txt"));
     let sheet = sheet.fold();
     dbg!(sheet.points.len());
+
+    // we need to print in order to read the 8 letters
+    let sheet = sheet.fold_all();
+    println!("FINAL:\n{}", sheet);
 }
 
 #[cfg(test)]
