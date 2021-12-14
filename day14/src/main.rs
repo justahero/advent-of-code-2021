@@ -1,17 +1,36 @@
-use itertools::Itertools;
+use std::collections::{HashMap, hash_map::Entry};
 
-#[derive(Debug)]
-struct Rule(String, char);
+use itertools::Itertools;
 
 #[derive(Debug)]
 struct Polymer {
     pub template: String,
-    pub pairs: Vec<Rule>,
+    // pub pairs: Vec<Rule>,
+    pub rules: HashMap<String, char>,
 }
 
 impl Polymer {
-    pub fn new(template: &str, pairs: Vec<Rule>) -> Self {
-        Self { template: template.to_string(), pairs }
+    pub fn new(template: &str, rules: &Vec<(String, char)>) -> Self {
+        let rules = rules.iter().cloned().collect::<HashMap<String, char>>();
+        Self { template: template.to_string(), rules }
+    }
+
+    /// Processes a single step, creates a resulting string with all insertions
+    /// after a single step.
+    pub fn step(&self) -> String {
+        let input = &self.template;
+        let mut rules = self.rules.clone();
+
+        let mut result = String::from(&input[..1]);
+        for i in 1..input.len() {
+            let s = &String::from(&input[(i-1)..=i]);
+            if let Entry::Occupied(entry) = rules.entry(s.clone()) {
+                result.push(*entry.get());
+            }
+            result.push(s.chars().last().unwrap());
+        }
+
+        result
     }
 }
 
@@ -23,16 +42,16 @@ fn parse_input(input: &str) -> Polymer {
         .collect_vec();
 
     let template = lines[0];
-    let pairs = lines[1..].iter().map(|&line| {
-        let (pair, c) = line.split_once(" -> ").expect("Failed to parse");
-        Rule(pair.to_string(), c.chars().next().unwrap())
+    let rules = lines[1..].iter().map(|&line| {
+        let (rule, c) = line.split_once(" -> ").expect("Failed to parse");
+        (rule.to_string(), c.chars().next().unwrap())
     }).collect_vec();
 
-    Polymer::new(template, pairs)
+    Polymer::new(template, &rules)
 }
 
 fn main() {
-    println!("Hello, world!");
+    let _polymer = parse_input(include_str!("input.txt"));
 }
 
 #[cfg(test)]
@@ -64,10 +83,12 @@ mod tests {
     fn check_parse_input() {
         let input = parse_input(INPUT);
         assert_eq!(String::from("NNCB"), input.template);
-        assert_eq!(16, input.pairs.len());
+        assert_eq!(16, input.rules.len());
     }
 
     #[test]
     fn test_single_step_process() {
+        let input = parse_input(INPUT);
+        assert_eq!(String::from("NCNBCHB"), input.step());
     }
 }
