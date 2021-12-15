@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
@@ -20,36 +20,57 @@ impl Polymer {
 
     /// Processes the given number of steps, creates a resulting string with all insertions
     /// after steps are processed.
-    pub fn steps(&self, steps: usize) -> String {
-        let mut input = self.template.clone();
-        let mut rules = self.rules.clone();
+    ///
+    /// TODO refactor this algorithm, only calculate, dont create any strings
+    ///
+    pub fn steps(&self, steps: usize) -> HashMap<char, usize> {
+        let input = self.template.clone();
+        let rules = self.rules.clone();
 
-        for _ in 0..steps {
-            let mut result = String::from(&input[..1]);
-            for i in 1..input.len() {
-                let s = &String::from(&input[(i - 1)..=i]);
-                if let Entry::Occupied(entry) = rules.entry(s.clone()) {
-                    result.push(*entry.get());
-                }
-                result.push(s.chars().last().unwrap());
-            }
-            input = result.clone();
+        // let mut map: HashMap<char, usize> = input.chars().map(|c| (c, 0)).collect();
+        /*
+        let mut map: HashMap<char, usize> = input.chars().fold(HashMap::new(), |mut result, c| {
+            *result.entry(c).or_insert(0) += 1;
+            result
+        });
+        */
+
+        let mut map: HashMap<char, usize> = HashMap::new();
+        for i in 1..input.len() {
+            let text = &input[(i-1)..=i];
+            println!("FIND {}", text);
+            self.insert(steps, text, &rules, &mut map);
         }
 
-        input
+        map
+    }
+
+    fn insert(&self, step: usize, input: &str, rules: &HashMap<String, char>, map: &mut HashMap<char, usize>) {
+        // put all occurrences of given chars to map
+        if step == 0 {
+            // println!("INSERT {}", input);
+            for c in input.chars() {
+                *map.entry(c).or_insert(0) += 1;
+            }
+            return;
+        }
+
+        // check if there is a rule for the given input, then recurse down one step
+        if let Some(c) = rules.get(&input.to_string()) {
+            let (l, r) = input.split_at(1);
+            self.insert(step - 1, &format!("{}{}", l, c), rules, map);
+            self.insert(step - 1, &format!("{}{}", c, r), rules, map);
+        }
     }
 
     /// Runs the polymer process `steps` time, then counts the number of letter occurrences
     /// to calculate the final result:
     /// `most_common - least_common`
     pub fn calculate(&self, steps: usize) -> usize {
-        let result: String = self.steps(steps);
-        let mut m: HashMap<char, usize> = HashMap::new();
-        for c in result.chars() {
-            *m.entry(c).or_insert(0) += 1;
-        }
+        let map = self.steps(steps);
+        println!("CALCULATE MAP: {:?}", map);
 
-        let (lowest, highest) = m
+        let (lowest, highest) = map
             .iter()
             .minmax_by_key(|&(_, len)| len)
             .into_option()
@@ -116,16 +137,8 @@ mod tests {
     }
 
     #[test]
-    fn test_single_step_process() {
-        let input = parse_input(INPUT);
-        assert_eq!(String::from("NCNBCHB"), input.steps(1));
-        assert_eq!(String::from("NBCCNBBBCBHCB"), input.steps(2));
-        assert_eq!(String::from("NBBBCNCCNBBNBNBBCHBHHBCHB"), input.steps(3));
-    }
-
-    #[test]
     fn test_calculate_first_half() {
         let input = parse_input(INPUT);
-        assert_eq!(1588, input.calculate(10));
+        assert_eq!(1588, input.calculate(40));
     }
 }
