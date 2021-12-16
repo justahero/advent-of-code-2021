@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
+/// TODO replace String into a `Vec<u8>` ?
 #[derive(Debug)]
 struct Polymer {
     pub template: String,
@@ -20,18 +21,13 @@ impl Polymer {
     /// Processes the given number of steps, creates a resulting string with all insertions
     /// after steps are processed.
     ///
-    /// TODO refactor this algorithm, only calculate, dont create any strings
-    ///
     pub fn steps(&self, steps: usize) -> HashMap<String, usize> {
         let mut pairs: HashMap<String, usize> = HashMap::new();
         for (l, r) in self.template.chars().tuple_windows() {
             *pairs.entry(format!("{}{}", l, r)).or_insert(0) += 1_usize;
         }
 
-        println!("STEPS: PAIRS: {:?}", pairs);
-
-        for step in 0..steps {
-            println!("STEP: {}", step);
+        for _ in 0..steps {
             let mut pairs2 = HashMap::new();
             for (pair, count) in pairs.iter() {
                 let (l, r) = pair.split_at(1);
@@ -43,14 +39,13 @@ impl Polymer {
             pairs = pairs2.clone();
         }
 
+        // Calculate single letter frequencies
         let mut counts: HashMap<String, usize> = HashMap::new();
         for (pair, count) in pairs.iter() {
             let (l, _r) = pair.split_at(1);
             *counts.entry(l.to_string()).or_insert(0) += count;
         }
         *counts.get_mut(&self.template.chars().last().unwrap().to_string()).unwrap() += 1;
-
-        println!("STEPS COUNTS: {:?}", counts);
 
         counts
     }
@@ -94,6 +89,7 @@ fn parse_input(input: &str) -> Polymer {
 fn main() {
     let polymer = parse_input(include_str!("input.txt"));
     dbg!(polymer.calculate(10));
+    dbg!(polymer.calculate(40));
 }
 
 #[cfg(test)]
