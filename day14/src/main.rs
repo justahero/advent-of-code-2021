@@ -23,15 +23,14 @@ impl Polymer {
     /// TODO refactor this algorithm, only calculate, dont create any strings
     ///
     pub fn steps(&self, steps: usize) -> HashMap<String, usize> {
-        let mut input = self.template.chars();
-
-        let mut pairs = HashMap::new();
-        for i in 0..(steps - 1) {
-            let index = format!("{}{}", input.nth(i).unwrap(), input.nth(i + 1).unwrap());
-            *pairs.entry(index).or_insert(0) += 1_usize;
+        let mut pairs: HashMap<String, usize> = HashMap::new();
+        for (l, r) in self.template.chars().tuple_windows() {
+            *pairs.entry(format!("{}{}", l, r)).or_insert(0) += 1_usize;
         }
 
-        for step in 0..(steps - 1) {
+        println!("STEPS: PAIRS: {:?}", pairs);
+
+        for step in 0..steps {
             println!("STEP: {}", step);
             let mut pairs2 = HashMap::new();
             for (pair, count) in pairs.iter() {
@@ -40,21 +39,20 @@ impl Polymer {
                 *pairs2.entry(format!("{}{}", l, c)).or_insert(0) += count;
                 *pairs2.entry(format!("{}{}", c, r)).or_insert(0) += count;
             }
+
+            pairs = pairs2.clone();
         }
 
-        /*
-        for step in 1..steps {
-            let mut pairs2: HashMap<(u8, u8), usize> = HashMap::new();
-            println!("STEP: {}", step);
-            for (pair, count) in pairs.iter() {
-                *pairs2.entry((pair.0, rules[&pair])).or_insert(0) += count;
-                *pairs2.entry((rules[&pair], pair.1)).or_insert(0) += count;
-            }
-            pairs. = pairs2;
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for (pair, count) in pairs.iter() {
+            let (l, _r) = pair.split_at(1);
+            *counts.entry(l.to_string()).or_insert(0) += count;
         }
-        */
+        *counts.get_mut(&self.template.chars().last().unwrap().to_string()).unwrap() += 1;
 
-        pairs
+        println!("STEPS COUNTS: {:?}", counts);
+
+        counts
     }
 
     /// Runs the polymer process `steps` time, then counts the number of letter occurrences
@@ -64,17 +62,7 @@ impl Polymer {
         let map = self.steps(steps);
         println!("CALCULATE: {:?}", map);
 
-        let counters = map.iter().fold(HashMap::new(), |mut result, (s, count)| {
-            let mut s = s.chars();
-            let l = s.next().unwrap();
-            let r = s.next().unwrap();
-
-            *result.entry(l).or_insert(0) += count;
-            *result.entry(r).or_insert(0) += count;
-            result
-        });
-
-        let (lowest, highest) = counters
+        let (lowest, highest) = map
             .iter()
             .minmax_by_key(|&(_, len)| len)
             .into_option()
@@ -143,6 +131,12 @@ mod tests {
     #[test]
     fn test_calculate_first_half() {
         let input = parse_input(INPUT);
-        assert_eq!(1588, input.calculate(40));
+        assert_eq!(1588, input.calculate(10));
+    }
+
+    #[test]
+    fn test_calculate_second_half() {
+        let input = parse_input(INPUT);
+        assert_eq!(2188189693529, input.calculate(40));
     }
 }
