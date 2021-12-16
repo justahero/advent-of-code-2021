@@ -23,12 +23,23 @@ impl Polymer {
     /// TODO refactor this algorithm, only calculate, dont create any strings
     ///
     pub fn steps(&self, steps: usize) -> HashMap<String, usize> {
-        let input = self.template.chars().map(|c| c as u8).collect_vec();
-        let rules = self.rules.clone();
+        let mut input = self.template.chars();
 
-        let mut pairs: HashMap<String, usize> = HashMap::new();
-        for i in 1..input.len() {
-            // *pairs.entry((input[i], input[i-1])).or_insert(0) += 1;
+        let mut pairs = HashMap::new();
+        for i in 0..(steps - 1) {
+            let index = format!("{}{}", input.nth(i).unwrap(), input.nth(i + 1).unwrap());
+            *pairs.entry(index).or_insert(0) += 1_usize;
+        }
+
+        for step in 0..(steps - 1) {
+            println!("STEP: {}", step);
+            let mut pairs2 = HashMap::new();
+            for (pair, count) in pairs.iter() {
+                let (l, r) = pair.split_at(1);
+                let c = self.rules.get(pair).unwrap();
+                *pairs2.entry(format!("{}{}", l, c)).or_insert(0) += count;
+                *pairs2.entry(format!("{}{}", c, r)).or_insert(0) += count;
+            }
         }
 
         /*
@@ -51,6 +62,7 @@ impl Polymer {
     /// `most_common - least_common`
     pub fn calculate(&self, steps: usize) -> usize {
         let map = self.steps(steps);
+        println!("CALCULATE: {:?}", map);
 
         let counters = map.iter().fold(HashMap::new(), |mut result, (s, count)| {
             let mut s = s.chars();
