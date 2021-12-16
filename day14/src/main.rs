@@ -5,13 +5,12 @@ use itertools::Itertools;
 #[derive(Debug)]
 struct Polymer {
     pub template: String,
-    // pub pairs: Vec<Rule>,
-    pub rules: HashMap<String, char>,
+    pub rules: HashMap<String, String>,
 }
 
 impl Polymer {
-    pub fn new(template: &str, rules: &[(String, char)]) -> Self {
-        let rules = rules.iter().cloned().collect::<HashMap<String, char>>();
+    pub fn new(template: &str, rules: &[(String, String)]) -> Self {
+        let rules = rules.iter().cloned().collect::<HashMap<String, String>>();
         Self {
             template: template.to_string(),
             rules,
@@ -23,44 +22,28 @@ impl Polymer {
     ///
     /// TODO refactor this algorithm, only calculate, dont create any strings
     ///
-    pub fn steps(&self, steps: usize) -> HashMap<char, usize> {
-        let input = self.template.clone();
+    pub fn steps(&self, steps: usize) -> HashMap<String, usize> {
+        let input = self.template.chars().map(|c| c as u8).collect_vec();
         let rules = self.rules.clone();
 
-        // let mut map: HashMap<char, usize> = input.chars().map(|c| (c, 0)).collect();
+        let mut pairs: HashMap<String, usize> = HashMap::new();
+        for i in 1..input.len() {
+            // *pairs.entry((input[i], input[i-1])).or_insert(0) += 1;
+        }
+
         /*
-        let mut map: HashMap<char, usize> = input.chars().fold(HashMap::new(), |mut result, c| {
-            *result.entry(c).or_insert(0) += 1;
-            result
-        });
+        for step in 1..steps {
+            let mut pairs2: HashMap<(u8, u8), usize> = HashMap::new();
+            println!("STEP: {}", step);
+            for (pair, count) in pairs.iter() {
+                *pairs2.entry((pair.0, rules[&pair])).or_insert(0) += count;
+                *pairs2.entry((rules[&pair], pair.1)).or_insert(0) += count;
+            }
+            pairs. = pairs2;
+        }
         */
 
-        let mut map: HashMap<char, usize> = HashMap::new();
-        for i in 1..input.len() {
-            let text = &input[(i-1)..=i];
-            println!("FIND {}", text);
-            self.insert(steps, text, &rules, &mut map);
-        }
-
-        map
-    }
-
-    fn insert(&self, step: usize, input: &str, rules: &HashMap<String, char>, map: &mut HashMap<char, usize>) {
-        // put all occurrences of given chars to map
-        if step == 0 {
-            // println!("INSERT {}", input);
-            for c in input.chars() {
-                *map.entry(c).or_insert(0) += 1;
-            }
-            return;
-        }
-
-        // check if there is a rule for the given input, then recurse down one step
-        if let Some(c) = rules.get(&input.to_string()) {
-            let (l, r) = input.split_at(1);
-            self.insert(step - 1, &format!("{}{}", l, c), rules, map);
-            self.insert(step - 1, &format!("{}{}", c, r), rules, map);
-        }
+        pairs
     }
 
     /// Runs the polymer process `steps` time, then counts the number of letter occurrences
@@ -68,9 +51,18 @@ impl Polymer {
     /// `most_common - least_common`
     pub fn calculate(&self, steps: usize) -> usize {
         let map = self.steps(steps);
-        println!("CALCULATE MAP: {:?}", map);
 
-        let (lowest, highest) = map
+        let counters = map.iter().fold(HashMap::new(), |mut result, (s, count)| {
+            let mut s = s.chars();
+            let l = s.next().unwrap();
+            let r = s.next().unwrap();
+
+            *result.entry(l).or_insert(0) += count;
+            *result.entry(r).or_insert(0) += count;
+            result
+        });
+
+        let (lowest, highest) = counters
             .iter()
             .minmax_by_key(|&(_, len)| len)
             .into_option()
@@ -88,11 +80,11 @@ fn parse_input(input: &str) -> Polymer {
         .collect_vec();
 
     let template = lines[0];
-    let rules = lines[1..]
+    let rules: Vec<(String, String)> = lines[1..]
         .iter()
         .map(|&line| {
             let (rule, c) = line.split_once(" -> ").expect("Failed to parse");
-            (rule.to_string(), c.chars().next().unwrap())
+            (rule.to_string(), c.to_string())
         })
         .collect_vec();
 
