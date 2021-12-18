@@ -1,8 +1,8 @@
-use std::{collections::{HashMap, VecDeque}, fmt::Display};
+use std::{cmp::Reverse, collections::{BinaryHeap, HashMap}, fmt::Display};
 
 use itertools::Itertools;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Point {
     pub x: u32,
     pub y: u32,
@@ -53,10 +53,10 @@ impl Grid {
             .map(|(point, _)| (point, u32::MAX))
             .collect::<HashMap<_, _>>();
 
-        let mut points: VecDeque<(Point, u32)> = VecDeque::new();
-        points.push_back((initial_node, 0));
+        let mut points = BinaryHeap::new();
+        points.push((Reverse(0), initial_node));
 
-        while let Some((current, cost)) = points.pop_front() {
+        while let Some((Reverse(cost), current)) = points.pop() {
             if cost < best[&current] {
                 best.insert(current, cost);
 
@@ -65,7 +65,7 @@ impl Grid {
                     let y = current.y as i32 + dy;
                     if 0 <= y && y < self.height as i32 && 0 <= x && x < self.width as i32 {
                         let (neighbor, value) = self.fields[(y * self.width as i32 + x) as usize];
-                        points.push_back((neighbor, cost + value as u32));
+                        points.push((Reverse(cost + value as u32), neighbor));
                     }
                 }
             }
