@@ -44,7 +44,7 @@ impl Grid {
     }
 
     pub fn find_shortest_path(&self) -> u32 {
-        let (initial_node, _) = self.get(0, 0).expect("Failed to get initial node.");
+        let (initial_node, _) = self.fields[0];
 
         let mut best = self
             .fields
@@ -54,34 +54,24 @@ impl Grid {
             .collect::<HashMap<_, _>>();
 
         let mut points: VecDeque<(Point, u32)> = VecDeque::new();
-        points.push_back((*initial_node, 0));
+        points.push_back((initial_node, 0));
 
         while let Some((current, cost)) = points.pop_front() {
             if cost < best[&current] {
                 best.insert(current, cost);
-                for &(neighbor, distance) in self.neighbors(current.x, current.y) {
-                    points.push_back((neighbor, cost + distance as u32));
+
+                for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                    let x = current.x as i32 + dx;
+                    let y = current.y as i32 + dy;
+                    if 0 <= y && y < self.height as i32 && 0 <= x && x < self.width as i32 {
+                        let (neighbor, value) = self.fields[(y * self.width as i32 + x) as usize];
+                        points.push_back((neighbor, cost + value as u32));
+                    }
                 }
             }
         }
 
         best[&Point::new(self.width - 1, self.height - 1)]
-    }
-
-    /// Returns the `Point` at coordinates x,y
-    fn get(&self, x: i32, y: i32) -> Option<&(Point, u8)> {
-        if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
-            self.fields
-                .get((y * self.width as i32 + x) as usize)
-        } else {
-            None
-        }
-    }
-
-    fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = &(Point, u8)> + '_ {
-        [(-1, 0), (1, 0), (0, -1), (0, 1)]
-            .iter()
-            .filter_map(move |&(nx, ny)| self.get(x as i32 + nx, y as i32 + ny))
     }
 }
 
@@ -96,17 +86,17 @@ fn parse_input_multiple(input: &str, repeat_x: u32, repeat_y: u32) -> Grid {
         .filter(|&line| !line.is_empty())
         .collect_vec();
 
-    let height = lines.len() as u32;
-    let width = lines[0].len() as u32;
-    println!("MULTIPLE: width: {}, height: {}", width, height);
+    let tile_height = lines.len() as u32;
+    let tile_width = lines[0].len() as u32;
 
     let mut fields = Vec::new();
-    for ry in 0..repeat_y {
-        for rx in 0..repeat_x {
-            println!("REPEAT: {}x{}", rx, ry);
-            for (y, &line) in lines.iter().enumerate() {
+    for ry in 0..repeat_x {
+        for (y, &line) in lines.iter().enumerate() {
+            for rx in 0..repeat_y {
                 for (x, c) in line.chars().enumerate() {
-                    let (px, py) = (rx * width + x as u32, ry * height + y as u32);
+                    let px = rx * tile_width + x as u32;
+                    let py = ry * tile_height + y as u32;
+
                     let digit = c.to_digit(10).unwrap() + rx + ry;
                     let digit = 1 + ((digit as u8 - 1) % 9);
                     fields.push((Point::new(px, py), digit));
@@ -120,7 +110,6 @@ fn parse_input_multiple(input: &str, repeat_x: u32, repeat_y: u32) -> Grid {
 
 fn main() {
     let grid = parse_input(include_str!("input.txt"));
-
     let result = grid.find_shortest_path();
     dbg!(result);
 
@@ -172,7 +161,6 @@ mod tests {
             34567
         "#;
         let expected = parse_input(expected);
-        println!("GRID:\n{}", grid);
         assert_eq!(expected.fields, grid.fields);
     }
 
