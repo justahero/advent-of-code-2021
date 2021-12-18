@@ -146,7 +146,6 @@ mod tests {
     #[test]
     fn find_shortest_path() {
         let grid = parse_input(INPUT);
-        println!("GRID:\n{}", grid);
         assert_eq!(40, grid.find_shortest_path());
     }
 
@@ -167,7 +166,6 @@ mod tests {
     #[test]
     fn find_shortest_path_2nd() {
         let grid = parse_input_multiple(INPUT, 5, 5);
-        println!("GRID:\n{}", grid);
         assert_eq!(315, grid.find_shortest_path());
     }
 }
