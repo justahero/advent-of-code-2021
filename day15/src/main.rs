@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::{HashMap, VecDeque}, fmt::Display};
+use std::{collections::{HashMap, VecDeque}, fmt::Display};
 
 use itertools::Itertools;
 
@@ -6,26 +6,25 @@ use itertools::Itertools;
 struct Point {
     pub x: u32,
     pub y: u32,
-    pub value: u8,
 }
 
 impl Point {
-    pub fn new(x: u32, y: u32, value: u8) -> Self {
-        Self { x, y, value }
+    pub fn new(x: u32, y: u32) -> Self {
+        Self { x, y }
     }
 }
 
 #[derive(Debug)]
 struct Grid {
-    pub fields: Vec<Point>,
-    pub width: usize,
-    pub height: usize,
+    pub fields: Vec<(Point, u8)>,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for points in self.fields.chunks(self.width as usize) {
-            let values = points.iter().map(|p| p.value).join("");
+            let values = points.iter().map(|(_p, value)| value).join("");
             writeln!(f, "{}", values)?;
         }
         Ok(())
@@ -33,9 +32,9 @@ impl Display for Grid {
 }
 
 impl Grid {
-    pub fn new(fields: Vec<Point>) -> Self {
-        let width = fields.iter().max_by_key(|&p| p.x).unwrap().x as usize + 1;
-        let height = fields.iter().max_by_key(|&p| p.y).unwrap().y as usize + 1;
+    pub fn new(fields: Vec<(Point, u8)>) -> Self {
+        let width = fields.iter().max_by_key(|&(p, _)| p.x).unwrap().0.x as u32 + 1;
+        let height = fields.iter().max_by_key(|&(p, _)| p.y).unwrap().0.y as u32 + 1;
 
         Self {
             width,
@@ -44,58 +43,42 @@ impl Grid {
         }
     }
 
-    pub fn find_shortest_path(&self) -> usize {
-        println!("find_shortest_path start");
-        let initial_node = self.get(0, 0).expect("Failed to get initial node.");
+    pub fn find_shortest_path(&self) -> u32 {
+        let (initial_node, _) = self.get(0, 0).expect("Failed to get initial node.");
 
-        // not sure both hash maps are required
-        let mut unvisted = self
+        let mut best = self
             .fields
             .iter()
             .cloned()
-            .map(|node| (node, u32::MAX))
+            .map(|(point, _)| (point, u32::MAX))
             .collect::<HashMap<_, _>>();
-        let mut visited: HashMap<Point, u32> = HashMap::new();
 
-        // Set initial node to distance 0
-        let mut points: VecDeque<&Point> = VecDeque::new();
-        points.push_back(initial_node);
+        let mut points: VecDeque<(Point, u32)> = VecDeque::new();
+        points.push_back((*initial_node, 0));
 
-        while let Some(point) = points.pop_front() {
-            println!("  point: {:?}", point);
-
-            if let Some(current_distance) = unvisted.remove(point) {
-                let neighbors = self.neighbors(point.x, point.y).collect_vec();
-                for neighbor in neighbors.iter() {
-                    if let Some(d) = unvisted.get_mut(neighbor) {
-                        *d = min(current_distance + neighbor.value as u32, *d);
-                    }
+        while let Some((current, cost)) = points.pop_front() {
+            if cost < best[&current] {
+                best.insert(current, cost);
+                for &(neighbor, distance) in self.neighbors(current.x, current.y) {
+                    points.push_back((neighbor, cost + distance as u32));
                 }
-
-                for neighbor in neighbors.iter() {
-                    if !visited.contains_key(neighbor) {
-                        points.push_back(neighbor);
-                    }
-                }
-
-                visited.insert(*point, current_distance);
             }
         }
 
-        0
+        best[&Point::new(self.width - 1, self.height - 1)]
     }
 
     /// Returns the `Point` at coordinates x,y
-    fn get(&self, x: i32, y: i32) -> Option<&Point> {
+    fn get(&self, x: i32, y: i32) -> Option<&(Point, u8)> {
         if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
             self.fields
-                .get((y as u32 * self.width as u32 + x as u32) as usize)
+                .get((y * self.width as i32 + x) as usize)
         } else {
             None
         }
     }
 
-    fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = &Point> + '_ {
+    fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = &(Point, u8)> + '_ {
         [(-1, 0), (1, 0), (0, -1), (0, 1)]
             .iter()
             .filter_map(move |&(nx, ny)| self.get(x as i32 + nx, y as i32 + ny))
@@ -115,7 +98,7 @@ fn parse_input(input: &str) -> Grid {
         .flat_map(|(y, &line)| {
             line.chars()
                 .enumerate()
-                .map(move |(x, c)| Point::new(x as u32, y as u32, c.to_digit(10).unwrap() as u8))
+                .map(move |(x, c)| (Point::new(x as u32, y as u32), c.to_digit(10).unwrap() as u8))
         })
         .collect_vec();
 
@@ -124,8 +107,11 @@ fn parse_input(input: &str) -> Grid {
 
 fn main() {
     let grid = parse_input(include_str!("input.txt"));
+
     let result = grid.find_shortest_path();
     dbg!(result);
+
+    // result 467 too high
 }
 
 #[cfg(test)]
