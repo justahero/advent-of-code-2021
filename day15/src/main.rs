@@ -86,21 +86,34 @@ impl Grid {
 }
 
 fn parse_input(input: &str) -> Grid {
+    parse_input_multiple(input, 1, 1)
+}
+
+fn parse_input_multiple(input: &str, repeat_x: u32, repeat_y: u32) -> Grid {
     let lines = input
         .lines()
         .map(str::trim)
         .filter(|&line| !line.is_empty())
         .collect_vec();
 
-    let fields = lines
-        .iter()
-        .enumerate()
-        .flat_map(|(y, &line)| {
-            line.chars()
-                .enumerate()
-                .map(move |(x, c)| (Point::new(x as u32, y as u32), c.to_digit(10).unwrap() as u8))
-        })
-        .collect_vec();
+    let height = lines.len() as u32;
+    let width = lines[0].len() as u32;
+    println!("MULTIPLE: width: {}, height: {}", width, height);
+
+    let mut fields = Vec::new();
+    for ry in 0..repeat_y {
+        for rx in 0..repeat_x {
+            println!("REPEAT: {}x{}", rx, ry);
+            for (y, &line) in lines.iter().enumerate() {
+                for (x, c) in line.chars().enumerate() {
+                    let (px, py) = (rx * width + x as u32, ry * height + y as u32);
+                    let digit = c.to_digit(10).unwrap() + rx + ry;
+                    let digit = 1 + ((digit as u8 - 1) % 9);
+                    fields.push((Point::new(px, py), digit));
+                }
+            }
+        }
+    }
 
     Grid::new(fields)
 }
@@ -111,12 +124,14 @@ fn main() {
     let result = grid.find_shortest_path();
     dbg!(result);
 
-    // result 467 too high
+    let grid = parse_input_multiple(include_str!("input.txt"), 5, 5);
+    let result = grid.find_shortest_path();
+    dbg!(result);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_input;
+    use crate::{parse_input, parse_input_multiple};
 
     const INPUT: &str = r#"
         1163751742
@@ -144,5 +159,27 @@ mod tests {
         let grid = parse_input(INPUT);
         println!("GRID:\n{}", grid);
         assert_eq!(40, grid.find_shortest_path());
+    }
+
+    #[test]
+    fn check_repeat_axes() {
+        let grid = parse_input_multiple("8", 5, 5);
+        let expected = r#"
+            89123
+            91234
+            12345
+            23456
+            34567
+        "#;
+        let expected = parse_input(expected);
+        println!("GRID:\n{}", grid);
+        assert_eq!(expected.fields, grid.fields);
+    }
+
+    #[test]
+    fn find_shortest_path_2nd() {
+        let grid = parse_input_multiple(INPUT, 5, 5);
+        println!("GRID:\n{}", grid);
+        assert_eq!(315, grid.find_shortest_path());
     }
 }
