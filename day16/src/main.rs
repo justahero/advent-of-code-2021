@@ -15,8 +15,12 @@ impl<'a> BinaryCursor {
         Self { bytes: bytes.iter().cloned().collect_vec(), index: 0 }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.index / 8 >= self.bytes.len()
+    }
+
     pub fn read_bits(&mut self, bits: usize) -> u8 {
-        assert!(1 <= bits && bits <= 8);
+        assert!(bits <= 8);
 
         // TODO refactor later, it's a bit cluttered
         let mut result = 0;
@@ -33,6 +37,11 @@ impl<'a> BinaryCursor {
 
         result
     }
+
+    /// Forwards the cursor to the next full byte
+    pub fn seek_next_byte(&mut self) {
+        self.index = (self.index / 8 + 1) * 8;
+    }
 }
 
 #[derive(Debug)]
@@ -41,6 +50,8 @@ struct BinaryReader {
 }
 
 impl BinaryReader {
+    const LITERAL: u8 = 0b100;
+
     pub fn new(input: &str) -> Self {
         Self { input: input.to_string() }
     }
@@ -48,6 +59,19 @@ impl BinaryReader {
     pub fn decode(&self) {
         let mut cursor = BinaryCursor::new(&self.input.as_bytes()[..]);
 
+        while !cursor.is_empty() {
+            // read packet header
+            let version = cursor.read_bits(3);
+            let typeId = cursor.read_bits(3);
+
+            match typeId {
+                Self::LITERAL => {
+                    // parse literal
+                    
+                },
+                _ => panic!(),
+            }
+        }
     }
 }
 
@@ -69,5 +93,14 @@ mod tests {
         assert_eq!(0b11110, cursor.read_bits(5));
         assert_eq!(0b00101, cursor.read_bits(5));
         assert_eq!(0b000, cursor.read_bits(3));
+    }
+
+    #[test]
+    fn check_forward_byte() {
+        let input = &[0b11010000_u8, 0b11000000];
+        let mut cursor=  BinaryCursor::new(&input[..]);
+        assert_eq!(0b1101, cursor.read_bits(4));
+        cursor.seek_next_byte();
+        assert_eq!(0b1100, cursor.read_bits(4));
     }
 }
