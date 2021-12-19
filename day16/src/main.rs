@@ -189,16 +189,10 @@ impl BinaryReader {
         Self { input }
     }
 
-    pub fn decode(&self) -> Result<Vec<Packet>, anyhow::Error> {
+    pub fn decode(&self) -> Result<Packet, anyhow::Error> {
         let mut parser = Parser::from(self.input.as_str());
-        let mut packets = Vec::new();
-
-        while !parser.is_empty() {
-            let packet = Self::read_packet(&mut parser)?;
-            packets.push(packet);
-        }
-
-        Ok(packets)
+        let packet = Self::read_packet(&mut parser)?;
+        Ok(packet)
     }
 
     // Parses the binary input
@@ -247,7 +241,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryCursor, BinaryReader, Packet, Parser, parse_hex_input};
+    use crate::{BinaryCursor, Packet, Parser, parse_hex_input};
 
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
@@ -296,16 +290,14 @@ mod tests {
         let reader = parse_hex_input("D2FE28");
         assert_eq!("110100101111111000101000", reader.input);
 
-        let packets = reader.decode()?;
-        assert_eq!(1, packets.len());
-        assert_eq!(Packet::literal(6, 4, 2021), packets[0]);
+        let packet = reader.decode()?;
+        assert_eq!(Packet::literal(6, 4, 2021), packet);
         Ok(())
     }
 
     #[test]
     fn decode_binary_input_example() {
-        let input = "00111000000000000110111101000101001010010001001000000000";
-        let reader = BinaryReader::new(input.to_string());
+        let reader = parse_hex_input("38006F45291200");
         assert!(reader.decode().is_ok());
     }
 
