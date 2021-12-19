@@ -2,6 +2,7 @@ use std::ops::Shl;
 
 use itertools::Itertools;
 
+/// A basic cursor that reads the binary stream sequentially, handles internal cursor
 #[derive(Debug)]
 struct BinaryCursor {
     /// Holds all binary data
@@ -50,13 +51,6 @@ impl<'a> BinaryCursor {
     pub fn seek_next_byte(&mut self) {
         self.index = (self.index / 8 + 1) * 8;
     }
-
-    /// Reads the 5 bit literal, returns a tuple containing a bool to indicate to continue reading the literal
-    /// and 4 bits that make up the literal.
-    pub fn read_literal(&mut self) -> (bool, u16) {
-        let bits = self.read_bits(5);
-        (bits & 0b10000 >= 1, bits & 0xF)
-    }
 }
 
 impl From<&str> for BinaryCursor {
@@ -70,6 +64,51 @@ impl From<&str> for BinaryCursor {
             })
             .collect_vec();
         Self::new(&bytes)
+    }
+}
+
+/// Parser struct is to read specific elements from the binary stream
+#[derive(Debug)]
+struct Parser {
+    pub cursor: BinaryCursor,
+}
+
+impl Parser {
+    pub fn new(bytes: &[u8]) -> Self {
+        Self { cursor: BinaryCursor::new(bytes) }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cursor.is_empty()
+    }
+
+    pub fn read_bits(&mut self, bits: usize) -> u16 {
+        self.cursor.read_bits(bits)
+    }
+
+    pub fn read_header(&mut self) -> (u16, u16) {
+        let version = self.cursor.read_bits(3);
+        let type_id = self.cursor.read_bits(3);
+        (version, type_id)
+    }
+
+    /// Reads the literal in 5 bits chunk until completes.
+    pub fn read_literal(&mut self) -> u16 {
+        let mut result = 0_u16;
+        loop {
+            let bits = self.cursor.read_bits(5);
+            result = result.shl(4) + bits & 0xF as u16;
+            if bits & 0b10000 >= 1 {
+                break;
+            }
+        }
+        self.cursor.seek_next_byte();
+        result
+    }
+}
+impl From<&str> for Parser {
+    fn from(input: &str) -> Self {
+        Self { cursor: BinaryCursor::from(input) }
     }
 }
 
@@ -87,59 +126,54 @@ impl BinaryReader {
         }
     }
 
-    pub fn decode(&self) {
-        let mut cursor = BinaryCursor::from(self.input.as_str());
+    pub fn decode(&self) -> Result<(), anyhow::Error> {
+        let mut cursor = Parser::from(self.input.as_str());
         while !cursor.is_empty() {
-            Self::parse(&mut cursor);
+            Self::parse(&mut cursor)?;
         }
+        Ok(())
     }
 
     // Parses the binary input
-    fn parse(cursor: &mut BinaryCursor) {
+    fn parse(parser: &mut Parser) -> Result<(), anyhow::Error> {
         // read packet header
-        let version = cursor.read_bits(3);
-        let type_id = cursor.read_bits(3);
+        let (version, type_id) = parser.read_header();
 
         println!("VERSION: {}, Type ID: {}", version, type_id);
 
         match type_id {
             Self::LITERAL => {
                 // parse literal
-                let mut result = 0_u64;
-                loop {
-                    let (next, literal) = cursor.read_literal();
-                    println!("  parse literal: {}, {}", next, literal);
-                    result = result.shl(4) + literal as u64;
-                    if !next {
-                        break;
-                    }
-                }
-                cursor.seek_next_byte();
-                println!("Literal: {}", result);
+                let literal = parser.read_literal();
+                println!("Literal: {}", literal);
             }
             _ => {
                 // read operator and sub packets
-                let mode = cursor.read_bits(1);
+                let mode = parser.read_bits(1);
                 if mode == 0 {
-                    let total_length = cursor.read_bits(15);
+                    let total_length = parser.read_bits(15);
                     println!("Total length: {}", total_length);
                 } else {
-                    let num_packets = cursor.read_bits(11);
+                    let num_packets = parser.read_bits(11);
                     println!("Num packets: {}", num_packets);
                 }
             }
         }
+
+        Ok(())
     }
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let reader = BinaryReader::new(include_str!("input.txt"));
-    reader.decode();
+    reader.decode()?;
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryCursor, BinaryReader};
+    use crate::{BinaryCursor, BinaryReader, Parser};
 
     #[test]
     fn check_cursor_read_bits() {
@@ -163,12 +197,12 @@ mod tests {
     }
 
     #[test]
-    fn check_read_literal() {
+    fn check_parse_literal() -> Result<(), anyhow::Error> {
         let input = &[0b11011000];
-        let mut cursor = BinaryCursor::new(&input[..]);
-        let (next, literal) = cursor.read_literal();
-        assert!(next);
+        let mut parser = Parser::new(&input[..]);
+        let literal = parser.read_literal();
         assert_eq!(0b1011, literal);
+        Ok(())
     }
 
     #[test]
@@ -180,13 +214,13 @@ mod tests {
     #[test]
     fn decode_input_string() {
         let reader = BinaryReader::new("110100101111111000101000");
-        reader.decode();
+        assert!(reader.decode().is_ok());
     }
 
     #[test]
     fn decodes_input_with_operator() {
         let input = "00111000000000000110111101000101001010010001001000000000";
         let reader = BinaryReader::new(input);
-        reader.decode();
+        assert!(reader.decode().is_ok());
     }
 }
