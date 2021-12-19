@@ -89,43 +89,43 @@ impl BinaryReader {
 
     pub fn decode(&self) {
         let mut cursor = BinaryCursor::from(self.input.as_str());
-        Self::parse(&mut cursor);
+        while !cursor.is_empty() {
+            Self::parse(&mut cursor);
+        }
     }
 
     // Parses the binary input
     fn parse(cursor: &mut BinaryCursor) {
-        while !cursor.is_empty() {
-            // read packet header
-            let version = cursor.read_bits(3);
-            let type_id = cursor.read_bits(3);
+        // read packet header
+        let version = cursor.read_bits(3);
+        let type_id = cursor.read_bits(3);
 
-            println!("VERSION: {}, Type ID: {}", version, type_id);
+        println!("VERSION: {}, Type ID: {}", version, type_id);
 
-            match type_id {
-                Self::LITERAL => {
-                    // parse literal
-                    let mut result = 0_u64;
-                    loop {
-                        let (next, literal) = cursor.read_literal();
-                        println!("  parse literal: {}, {}", next, literal);
-                        result = result.shl(4) + literal as u64;
-                        if !next {
-                            break;
-                        }
+        match type_id {
+            Self::LITERAL => {
+                // parse literal
+                let mut result = 0_u64;
+                loop {
+                    let (next, literal) = cursor.read_literal();
+                    println!("  parse literal: {}, {}", next, literal);
+                    result = result.shl(4) + literal as u64;
+                    if !next {
+                        break;
                     }
-                    cursor.seek_next_byte();
-                    println!("Literal: {}", result);
                 }
-                _ => {
-                    // read operator and sub packets
-                    let mode = cursor.read_bits(1);
-                    if mode == 0 {
-                        let total_length = cursor.read_bits(15);
-                        println!("Total length: {}", total_length);
-                    } else {
-                        let num_packets = cursor.read_bits(11);
-                        println!("Num packets: {}", num_packets);
-                    }
+                cursor.seek_next_byte();
+                println!("Literal: {}", result);
+            }
+            _ => {
+                // read operator and sub packets
+                let mode = cursor.read_bits(1);
+                if mode == 0 {
+                    let total_length = cursor.read_bits(15);
+                    println!("Total length: {}", total_length);
+                } else {
+                    let num_packets = cursor.read_bits(11);
+                    println!("Num packets: {}", num_packets);
                 }
             }
         }
