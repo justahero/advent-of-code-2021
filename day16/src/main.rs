@@ -3,32 +3,40 @@ use std::{fmt::Display, ops::Shl};
 use itertools::Itertools;
 
 #[derive(Debug, PartialEq)]
-enum Operator {
-    Sum(Box<Vec<Packet>>),
-    Product(Box<Vec<Packet>>),
-    Min(Box<Vec<Packet>>),
-    Max(Box<Vec<Packet>>),
-    /// Greaten Than
-    GreaterThan(Box<Vec<Packet>>),
-    /// Less Than
-    LessThan(Box<Vec<Packet>>),
-    /// Equal to
-    Equal(Box<Vec<Packet>>),
+enum OperatorType {
+    Sum,
+    Product,
+    Min,
+    Max,
+    GreaterThan,
+    LessThan,
+    Equal,
+}
+
+impl From<u16> for OperatorType {
+    fn from(val: u16) -> Self {
+        match val {
+            0 => OperatorType::Sum,
+            1 => OperatorType::Product,
+            2 => OperatorType::Min,
+            3 => OperatorType::Max,
+            5 => OperatorType::GreaterThan,
+            6 => OperatorType::LessThan,
+            7 => OperatorType::Equal,
+            _ => panic!("Operator not supported."),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Operator {
+    pub packets: Box<Vec<Packet>>,
+    pub kind: OperatorType,
 }
 
 impl Operator {
     pub fn count_version(&self) -> usize {
-        let packets = match self {
-            Operator::Sum(packets) => packets,
-            Operator::Product(packets) => packets,
-            Operator::Min(packets) => packets,
-            Operator::Max(packets) => packets,
-            Operator::GreaterThan(packets) => packets,
-            Operator::LessThan(packets) => packets,
-            Operator::Equal(packets) => packets,
-        };
-
-        packets
+        self.packets
             .iter()
             .map(|packet| packet.count_version())
             .sum::<usize>()
@@ -251,16 +259,14 @@ impl BinaryReader {
             4 => Packet::literal(version, id, parser.read_literal()?),
             operator => {
                 let packets = Box::new(Self::read_packets(parser)?);
-                match operator {
-                    0 => Packet::operator(version, id, Operator::Sum(packets)),
-                    1 => Packet::operator(version, id, Operator::Product(packets)),
-                    2 => Packet::operator(version, id, Operator::Min(packets)),
-                    3 => Packet::operator(version, id, Operator::Max(packets)),
-                    5 => Packet::operator(version, id, Operator::GreaterThan(packets)),
-                    6 => Packet::operator(version, id, Operator::LessThan(packets)),
-                    7 => Packet::operator(version, id, Operator::Equal(packets)),
-                    _ => panic!("Operator not supported."),
-                }
+                Packet::operator(
+                    version,
+                    id,
+                    Operator {
+                        packets,
+                        kind: OperatorType::from(operator),
+                    },
+                )
             }
         };
 
@@ -325,7 +331,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_hex_input, BinaryCursor, Operator, Packet, Parser};
+    use crate::{parse_hex_input, BinaryCursor, Operator, OperatorType, Packet, Parser};
 
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
@@ -375,10 +381,10 @@ mod tests {
         let expected = Packet::operator(
             1,
             6,
-            Operator::LessThan(Box::new(vec![
-                Packet::literal(6, 4, 10),
-                Packet::literal(2, 4, 20),
-            ])),
+            Operator {
+                packets: Box::new(vec![Packet::literal(6, 4, 10), Packet::literal(2, 4, 20)]),
+                kind: OperatorType::LessThan,
+            },
         );
 
         assert_eq!(expected, reader.decode()?);
@@ -391,11 +397,14 @@ mod tests {
         let expected = Packet::operator(
             7,
             3,
-            Operator::Max(Box::new(vec![
-                Packet::literal(2, 4, 1),
-                Packet::literal(4, 4, 2),
-                Packet::literal(1, 4, 3),
-            ])),
+            Operator {
+                packets: Box::new(vec![
+                    Packet::literal(2, 4, 1),
+                    Packet::literal(4, 4, 2),
+                    Packet::literal(1, 4, 3),
+                ]),
+                kind: OperatorType::Max,
+            },
         );
 
         assert_eq!(expected, reader.decode()?);
