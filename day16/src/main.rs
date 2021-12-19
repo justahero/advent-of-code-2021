@@ -2,6 +2,12 @@ use std::{fmt::Display, ops::Shl};
 
 use itertools::Itertools;
 
+#[derive(Debug)]
+enum Packet {
+    Literal(u16),
+    Operator,
+}
+
 /// A basic cursor that reads the binary stream sequentially, handles internal cursor
 #[derive(Debug)]
 struct BinaryCursor {
@@ -107,7 +113,6 @@ impl Parser {
     }
 
     /// Reads the literal in 5 bits chunk until completes.
-    /// TODO refactor this logic, it's a bit cluttered
     pub fn read_literal(&mut self) -> anyhow::Result<u16> {
         let mut result = 0_u16;
         loop {
@@ -122,12 +127,28 @@ impl Parser {
         Ok(result)
     }
 
-    pub fn skip_bits(&mut self, num_bits: u16) {
-        self.cursor.skip_bits(num_bits);
+    /// Reads the operator packet
+    pub fn read_operator(&mut self) -> anyhow::Result<()> {
+        let mode = self.read_bits(1)?;
+        if mode == 0 {
+            let total_length = self.read_bits(15)?;
+            // let packets_parser = Parser { cursor: };
+            println!("Total length: {}", total_length);
+
+            // parse the next number of bits
+            let sub_parser = Parser::new(self.cursor.slice(total_length));
+            // Self::read_packet(&mut sub_parser)?;
+            self.cursor.skip_bits(total_length);
+        } else {
+            let num_packets = self.cursor.read_bits(11)?;
+            println!("Num packets: {}", num_packets);
+        }
+
+        Ok(())
     }
 
-    pub fn slice(&self, next_bits: u16) -> &[u8] {
-        self.cursor.slice(next_bits)
+    pub fn skip_bits(&mut self, num_bits: u16) {
+        self.cursor.skip_bits(num_bits);
     }
 }
 
@@ -173,20 +194,7 @@ impl BinaryReader {
             }
             _ => {
                 // read operator and sub packets
-                let mode = parser.read_bits(1)?;
-                if mode == 0 {
-                    let total_length = parser.read_bits(15)?;
-                    // let packets_parser = Parser { cursor: };
-                    println!("Total length: {}", total_length);
-
-                    // parse the next number of bits
-                    let mut sub_parser = Parser::new(parser.slice(total_length));
-                    Self::read_packet(&mut sub_parser)?;
-                    parser.skip_bits(total_length);
-                } else {
-                    let num_packets = parser.read_bits(11)?;
-                    println!("Num packets: {}", num_packets);
-                }
+                let packet = parser.read_operator()?;
             }
         }
 
