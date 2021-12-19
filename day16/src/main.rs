@@ -69,12 +69,8 @@ impl<'a> BinaryCursor {
             if value == 1 {
                 result = result | 1_u16.shl(bits - 1 - i);
             }
-
-            // println!("  byte: {}, bit: {} = {}", byte_index, bit_index, is_set);
         }
         self.index += bits;
-
-        // println!("Read {} bits: {:0width$b}, index: {}", bits, result, self.index, width = bits);
 
         Ok(result)
     }
@@ -218,14 +214,13 @@ impl BinaryReader {
                     // parse the next number of bits until total length is exhausted
                     let mut sub_parser = Parser::new(parser.slice(total_length));
                     println!("SUB PARSER: {}", sub_parser);
-                    
+
                     let mut result = Vec::new();
                     while !sub_parser.is_empty() {
                         let packet =  Self::read_packet(&mut sub_parser)?;
-                        println!("  SUB PACKET: {:?}", packet);
-                        println!("  CURRENT: {}", sub_parser);
                         result.push(packet);
                     }
+                    parser.skip_bits(total_length);
 
                     result
                 } else {
@@ -257,7 +252,6 @@ fn parse_hex_input(hexadecimal: &str) -> BinaryReader {
         .map(|value| format!("{:04b}", value))
         .collect_vec()
         .join("");
-    println!("HEX TO BINARY: {} - {}", hexadecimal, input);
     BinaryReader::new(input)
 }
 
@@ -284,16 +278,6 @@ mod tests {
         assert_eq!(0b11110, cursor.read_bits(5)?);
         assert_eq!(0b00101, cursor.read_bits(5)?);
         assert_eq!(0b000, cursor.read_bits(3)?);
-        Ok(())
-    }
-
-    #[test]
-    fn check_forward_byte() -> anyhow::Result<()> {
-        let input = "1101000011000000";
-        let mut cursor = BinaryCursor::from(input);
-        assert_eq!(0b1101, cursor.read_bits(4)?);
-        cursor.seek_next_byte();
-        assert_eq!(0b1100, cursor.read_bits(4)?);
         Ok(())
     }
 
@@ -327,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_operator_packet_with_two_sub_packets() -> anyhow::Result<()> {
+    fn decode_operator_packet_with_two_literals() -> anyhow::Result<()> {
         let reader = parse_hex_input("38006F45291200");
         let expected = Packet::operator(1, 6, vec![
             Packet::literal(6, 4, 10),
@@ -335,7 +319,19 @@ mod tests {
         ]);
 
         assert_eq!(expected, reader.decode()?);
+        Ok(())
+    }
 
+    #[test]
+    fn decode_operator_with_three_subpackets() -> anyhow::Result<()> {
+        let reader = parse_hex_input("EE00D40C823060");
+        let expected = Packet::operator(7, 3, vec![
+            Packet::literal(2, 4, 1),
+            Packet::literal(4, 4, 2),
+            Packet::literal(1, 4, 3),
+        ]);
+
+        assert_eq!(expected, reader.decode()?);
         Ok(())
     }
 
