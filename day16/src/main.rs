@@ -3,9 +3,46 @@ use std::{fmt::Display, ops::Shl};
 use itertools::Itertools;
 
 #[derive(Debug, PartialEq)]
+enum Operator {
+    Sum(Box<Vec<Packet>>),
+    Product(Box<Vec<Packet>>),
+    Min(Box<Vec<Packet>>),
+    Max(Box<Vec<Packet>>),
+    /// Greaten Than
+    GreaterThan(Box<Vec<Packet>>),
+    /// Less Than
+    LessThan(Box<Vec<Packet>>),
+    /// Equal to
+    Equal(Box<Vec<Packet>>),
+}
+
+impl Operator {
+    pub fn count_version(&self) -> usize {
+        let packets = match self {
+            Operator::Sum(packets) => packets,
+            Operator::Product(packets) => packets,
+            Operator::Min(packets) => packets,
+            Operator::Max(packets) => packets,
+            Operator::GreaterThan(packets) => packets,
+            Operator::LessThan(packets) => packets,
+            Operator::Equal(packets) => packets,
+        };
+
+        packets
+            .iter()
+            .map(|packet| packet.count_version())
+            .sum::<usize>()
+    }
+
+    pub fn calculate(&self) -> u32 {
+        todo!("needs implementation.")
+    }
+}
+
+#[derive(Debug, PartialEq)]
 enum PacketType {
     Literal(u16),
-    Operator(Box<Vec<Packet>>),
+    Operator(Operator),
 }
 
 #[derive(Debug, PartialEq)]
@@ -17,20 +54,30 @@ struct Packet {
 
 impl Packet {
     pub fn literal(version: u16, type_id: u16, literal: u16) -> Self {
-        Self { version, type_id, data: PacketType::Literal(literal) }
+        Self {
+            version,
+            type_id,
+            data: PacketType::Literal(literal),
+        }
     }
 
-    pub fn operator(version: u16, type_id: u16, sub_packets: Vec<Packet>) -> Self {
-        Self { version, type_id, data: PacketType::Operator(Box::new(sub_packets)) }
+    pub fn operator(version: u16, type_id: u16, operator: Operator) -> Self {
+        Self {
+            version,
+            type_id,
+            data: PacketType::Operator(operator),
+        }
+    }
+
+    pub fn calculate(&self) -> u32 {
+        0
     }
 }
 
 impl Packet {
-    pub fn count_version_numbers(&self) -> usize {
+    pub fn count_version(&self) -> usize {
         let count = match &self.data {
-            PacketType::Operator(sub_packets) => {
-                sub_packets.iter().map(|packet| packet.count_version_numbers()).sum::<usize>()
-            },
+            PacketType::Operator(operator) => operator.count_version(),
             _ => 0,
         };
         self.version as usize + count as usize
@@ -48,7 +95,10 @@ struct BinaryCursor {
 
 impl<'a> BinaryCursor {
     pub fn new(bytes: &[u8]) -> Self {
-        Self { bytes: bytes.iter().cloned().collect_vec(), index: 0 }
+        Self {
+            bytes: bytes.iter().cloned().collect_vec(),
+            index: 0,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -161,7 +211,9 @@ impl Parser {
 impl From<&str> for Parser {
     /// Creates a new Parser from a binary String with '0' and '1'
     fn from(input: &str) -> Self {
-        Self { cursor: BinaryCursor::from(input) }
+        Self {
+            cursor: BinaryCursor::from(input),
+        }
     }
 }
 
@@ -177,8 +229,6 @@ struct BinaryReader {
 }
 
 impl BinaryReader {
-    const LITERAL: u16 = 0b100;
-
     /// Creates a new BinaryReader with binary input (a string consisting of '0' and '1')
     pub fn new(input: String) -> Self {
         Self { input }
@@ -193,53 +243,62 @@ impl BinaryReader {
     // Parses the binary input
     fn read_packet(parser: &mut Parser) -> Result<Packet, anyhow::Error> {
         // read packet header
-        let (version, type_id) = parser.read_header()?;
+        let (version, id) = parser.read_header()?;
 
-        println!("VERSION: {}, Type ID: {}", version, type_id);
+        println!("VERSION: {}, Type ID: {}", version, id);
 
-        let packet = match type_id {
-            Self::LITERAL => {
-                let literal = parser.read_literal()?;
-                println!("Literal: {}", literal);
-                Packet::literal(version, type_id, literal)
-            }
-            _ => {
-                // read operator and sub packets
-                let mode = parser.read_bits(1)?;
-                let sub_packets = if mode == 0 {
-                    let total_length = parser.read_bits(15)?;
-                    // let packets_parser = Parser { cursor: };
-                    println!("Total length: {}", total_length);
-
-                    // parse the next number of bits until total length is exhausted
-                    let mut sub_parser = Parser::new(parser.slice(total_length));
-                    println!("SUB PARSER: {}", sub_parser);
-
-                    let mut result = Vec::new();
-                    while !sub_parser.is_empty() {
-                        let packet =  Self::read_packet(&mut sub_parser)?;
-                        result.push(packet);
-                    }
-                    parser.skip_bits(total_length);
-
-                    result
-                } else {
-                    let num_packets = parser.read_bits(11)?;
-
-                    println!("Num packets: {}", num_packets);
-                    let mut sub_packets = Vec::new();
-                    for _ in 0..num_packets {
-                        let packet = Self::read_packet(parser)?;
-                        sub_packets.push(packet);
-                    }
-                    sub_packets
-                };
-
-                Packet::operator(version, type_id, sub_packets)
+        let packet = match id {
+            4 => Packet::literal(version, id, parser.read_literal()?),
+            operator => {
+                let packets = Box::new(Self::read_packets(parser)?);
+                match operator {
+                    0 => Packet::operator(version, id, Operator::Sum(packets)),
+                    1 => Packet::operator(version, id, Operator::Product(packets)),
+                    2 => Packet::operator(version, id, Operator::Min(packets)),
+                    3 => Packet::operator(version, id, Operator::Max(packets)),
+                    5 => Packet::operator(version, id, Operator::GreaterThan(packets)),
+                    6 => Packet::operator(version, id, Operator::LessThan(packets)),
+                    7 => Packet::operator(version, id, Operator::Equal(packets)),
+                    _ => panic!("Operator not supported."),
+                }
             }
         };
 
         Ok(packet)
+    }
+
+    /// Reads all sub packets, returns the list
+    fn read_packets(parser: &mut Parser) -> anyhow::Result<Vec<Packet>> {
+        let mode = parser.read_bits(1)?;
+        let packets = if mode == 0 {
+            let total_length = parser.read_bits(15)?;
+            // let packets_parser = Parser { cursor: };
+            println!("Total length: {}", total_length);
+
+            // parse the next number of bits until total length is exhausted
+            let mut sub_parser = Parser::new(parser.slice(total_length));
+            println!("SUB PARSER: {}", sub_parser);
+
+            let mut result = Vec::new();
+            while !sub_parser.is_empty() {
+                let packet = Self::read_packet(&mut sub_parser)?;
+                result.push(packet);
+            }
+            parser.skip_bits(total_length);
+
+            result
+        } else {
+            let num_packets = parser.read_bits(11)?;
+
+            println!("Num packets: {}", num_packets);
+            let mut sub_packets = Vec::new();
+            for _ in 0..num_packets {
+                let packet = Self::read_packet(parser)?;
+                sub_packets.push(packet);
+            }
+            sub_packets
+        };
+        Ok(packets)
     }
 }
 
@@ -259,14 +318,14 @@ fn main() -> anyhow::Result<()> {
     let reader = parse_hex_input(include_str!("input.txt"));
 
     let packet = reader.decode()?;
-    dbg!(packet.count_version_numbers());
+    dbg!(packet.count_version());
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryCursor, Packet, Parser, parse_hex_input};
+    use crate::{parse_hex_input, BinaryCursor, Operator, Packet, Parser};
 
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
@@ -313,10 +372,14 @@ mod tests {
     #[test]
     fn decode_operator_packet_with_two_literals() -> anyhow::Result<()> {
         let reader = parse_hex_input("38006F45291200");
-        let expected = Packet::operator(1, 6, vec![
-            Packet::literal(6, 4, 10),
-            Packet::literal(2, 4, 20),
-        ]);
+        let expected = Packet::operator(
+            1,
+            6,
+            Operator::LessThan(Box::new(vec![
+                Packet::literal(6, 4, 10),
+                Packet::literal(2, 4, 20),
+            ])),
+        );
 
         assert_eq!(expected, reader.decode()?);
         Ok(())
@@ -325,11 +388,15 @@ mod tests {
     #[test]
     fn decode_operator_with_three_subpackets() -> anyhow::Result<()> {
         let reader = parse_hex_input("EE00D40C823060");
-        let expected = Packet::operator(7, 3, vec![
-            Packet::literal(2, 4, 1),
-            Packet::literal(4, 4, 2),
-            Packet::literal(1, 4, 3),
-        ]);
+        let expected = Packet::operator(
+            7,
+            3,
+            Operator::Max(Box::new(vec![
+                Packet::literal(2, 4, 1),
+                Packet::literal(4, 4, 2),
+                Packet::literal(1, 4, 3),
+            ])),
+        );
 
         assert_eq!(expected, reader.decode()?);
         Ok(())
@@ -337,10 +404,49 @@ mod tests {
 
     #[test]
     fn count_versions_in_transmissions() -> anyhow::Result<()> {
-        assert_eq!(16, parse_hex_input("8A004A801A8002F478").decode()?.count_version_numbers());
-        assert_eq!(12, parse_hex_input("620080001611562C8802118E34").decode()?.count_version_numbers());
-        assert_eq!(23, parse_hex_input("C0015000016115A2E0802F182340").decode()?.count_version_numbers());
-        assert_eq!(31, parse_hex_input("A0016C880162017C3686B18A3D4780").decode()?.count_version_numbers());
+        assert_eq!(
+            16,
+            parse_hex_input("8A004A801A8002F478")
+                .decode()?
+                .count_version()
+        );
+        assert_eq!(
+            12,
+            parse_hex_input("620080001611562C8802118E34")
+                .decode()?
+                .count_version()
+        );
+        assert_eq!(
+            23,
+            parse_hex_input("C0015000016115A2E0802F182340")
+                .decode()?
+                .count_version()
+        );
+        assert_eq!(
+            31,
+            parse_hex_input("A0016C880162017C3686B18A3D4780")
+                .decode()?
+                .count_version()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_value_of_transmissions() -> anyhow::Result<()> {
+        assert_eq!(3, parse_hex_input("C200B40A82").decode()?.calculate());
+        assert_eq!(54, parse_hex_input("04005AC33890").decode()?.calculate());
+        assert_eq!(7, parse_hex_input("880086C3E88112").decode()?.calculate());
+        assert_eq!(9, parse_hex_input("CE00C43D881120").decode()?.calculate());
+        assert_eq!(1, parse_hex_input("D8005AC2A8F0").decode()?.calculate());
+        assert_eq!(0, parse_hex_input("F600BC2D8F").decode()?.calculate());
+        assert_eq!(0, parse_hex_input("9C005AC2F8F0").decode()?.calculate());
+        assert_eq!(
+            1,
+            parse_hex_input("9C0141080250320F1802104A08")
+                .decode()?
+                .calculate()
+        );
+
         Ok(())
     }
 }
