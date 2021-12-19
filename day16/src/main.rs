@@ -99,6 +99,7 @@ impl Parser {
     }
 
     /// Reads the literal in 5 bits chunk until completes.
+    /// TODO refactor this logic, it's a bit cluttered
     pub fn read_literal(&mut self) -> anyhow::Result<u16> {
         let mut result = 0_u16;
         loop {
@@ -122,30 +123,21 @@ struct BinaryReader {
 impl BinaryReader {
     const LITERAL: u16 = 0b100;
 
-    /// Creates a new BinaryReader with hexadecimal input
-    pub fn new(hex_input: &str) -> Self {
-        // convert each hex value into a list of chars
-        let input = hex_input
-            .chars()
-            .filter_map(|c| c.to_digit(16))
-            .map(|value| format!("{:08b}", value))
-            .collect_vec()
-            .join("");
-
+    /// Creates a new BinaryReader with binary input (a string consisting of '0' and '1')
+    pub fn new(input: String) -> Self {
         Self { input }
     }
 
     pub fn decode(&self) -> Result<(), anyhow::Error> {
         let mut parser = Parser::new(self.input.as_str());
         while !parser.is_empty() {
-            println!("!!!! PARSE: {:?}", parser);
-            Self::parse(&mut parser)?;
+            Self::read_packet(&mut parser)?;
         }
         Ok(())
     }
 
     // Parses the binary input
-    fn parse(parser: &mut Parser) -> Result<(), anyhow::Error> {
+    fn read_packet(parser: &mut Parser) -> Result<(), anyhow::Error> {
         // read packet header
         let (version, type_id) = parser.read_header()?;
 
@@ -174,8 +166,18 @@ impl BinaryReader {
     }
 }
 
+fn parse_hex_input(hexadecimal: &str) -> BinaryReader {
+    let input = hexadecimal
+        .chars()
+        .filter_map(|c| c.to_digit(16))
+        .map(|value| format!("{:08b}", value))
+        .collect_vec()
+        .join("");
+    BinaryReader::new(input)
+}
+
 fn main() -> anyhow::Result<()> {
-    let reader = BinaryReader::new(include_str!("input.txt"));
+    let reader = parse_hex_input(include_str!("input.txt"));
     reader.decode()?;
 
     Ok(())
@@ -183,7 +185,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryCursor, BinaryReader, Parser};
+    use crate::{BinaryCursor, BinaryReader, Parser, parse_hex_input};
 
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
@@ -228,15 +230,15 @@ mod tests {
     }
 
     #[test]
-    fn decode_input_string() {
-        let reader = BinaryReader::new("8A004A801A8002F478");
+    fn decode_binary_input_example() {
+        let input = "00111000000000000110111101000101001010010001001000000000";
+        let reader = BinaryReader::new(input.to_string());
         assert!(reader.decode().is_ok());
     }
 
     #[test]
-    fn decodes_input_with_operator() {
-        let input = "00111000000000000110111101000101001010010001001000000000";
-        let reader = BinaryReader::new(input);
+    fn decode_hexadecimal_examples() {
+        let reader = parse_hex_input("8A004A801A8002F478");
         assert!(reader.decode().is_ok());
     }
 }
