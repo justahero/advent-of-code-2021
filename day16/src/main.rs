@@ -5,14 +5,17 @@ use itertools::Itertools;
 #[derive(Debug)]
 struct BinaryCursor {
     /// Holds all binary data
-    bytes: Vec<u8>,
+    pub bytes: Vec<u8>,
     /// Index into the bit array
     index: usize,
 }
 
 impl<'a> BinaryCursor {
     pub fn new(bytes: &[u8]) -> Self {
-        Self { bytes: bytes.iter().cloned().collect_vec(), index: 0 }
+        Self {
+            bytes: bytes.iter().cloned().collect_vec(),
+            index: 0,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -51,6 +54,20 @@ impl<'a> BinaryCursor {
     }
 }
 
+impl From<&str> for BinaryCursor {
+    fn from(input: &str) -> Self {
+        let bytes = input
+            .chars()
+            .chunks(8)
+            .into_iter()
+            .map(|chunk| {
+                u8::from_str_radix(&chunk.into_iter().collect::<String>(), 2).unwrap()
+            })
+            .collect_vec();
+        Self::new(&bytes)
+    }
+}
+
 #[derive(Debug)]
 struct BinaryReader {
     input: String,
@@ -60,7 +77,9 @@ impl BinaryReader {
     const LITERAL: u8 = 0b100;
 
     pub fn new(input: &str) -> Self {
-        Self { input: input.to_string() }
+        Self {
+            input: input.to_string(),
+        }
     }
 
     pub fn decode(&self) {
@@ -69,16 +88,21 @@ impl BinaryReader {
         while !cursor.is_empty() {
             // read packet header
             let version = cursor.read_bits(3);
-            let typeId = cursor.read_bits(3);
+            let type_id = cursor.read_bits(3);
 
-            match typeId {
+            match type_id {
                 Self::LITERAL => {
                     // parse literal
-                    let mut result = 0;
+                    let mut result = 0_u64;
                     loop {
-                        
+                        let (next, literal) = cursor.read_literal();
+                        result = result.shl(4) + literal as u64;
+                        if !next {
+                            break;
+                        }
                     }
-                },
+                    println!("Literal: {}", result);
+                }
                 _ => panic!(),
             }
         }
@@ -86,7 +110,8 @@ impl BinaryReader {
 }
 
 fn main() {
-    let _reader = BinaryReader::new(include_str!("input.txt"));
+    let reader = BinaryReader::new(include_str!("input.txt"));
+    reader.decode();
 }
 
 #[cfg(test)]
@@ -108,7 +133,7 @@ mod tests {
     #[test]
     fn check_forward_byte() {
         let input = &[0b11010000_u8, 0b11000000];
-        let mut cursor=  BinaryCursor::new(&input[..]);
+        let mut cursor = BinaryCursor::new(&input[..]);
         assert_eq!(0b1101, cursor.read_bits(4));
         cursor.seek_next_byte();
         assert_eq!(0b1100, cursor.read_bits(4));
@@ -121,5 +146,11 @@ mod tests {
         let (next, literal) = cursor.read_literal();
         assert!(next);
         assert_eq!(0b1011, literal);
+    }
+
+    #[test]
+    fn check_parse_cursor_from_string() {
+        let cursor = BinaryCursor::from("110100101111111000101000");
+        assert_eq!(vec![0b11010010_u8, 0b11111110, 0b00101000], cursor.bytes);
     }
 }
