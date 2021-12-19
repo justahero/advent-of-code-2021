@@ -2,13 +2,13 @@ use std::{fmt::Display, ops::Shl};
 
 use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum PacketType {
     Literal(u16),
     Operator,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct Packet {
     pub version: u16,
     pub type_id: u16,
@@ -225,13 +225,16 @@ impl BinaryReader {
     }
 }
 
+/// Parses the hexadecimal input string, converts it to binary string
+/// then creates a new BinaryReader to parse all binary data.
 fn parse_hex_input(hexadecimal: &str) -> BinaryReader {
     let input = hexadecimal
         .chars()
         .filter_map(|c| c.to_digit(16))
-        .map(|value| format!("{:08b}", value))
+        .map(|value| format!("{:04b}", value))
         .collect_vec()
         .join("");
+    println!("HEX TO BINARY: {} - {}", hexadecimal, input);
     BinaryReader::new(input)
 }
 
@@ -244,7 +247,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryCursor, BinaryReader, Parser, parse_hex_input};
+    use crate::{BinaryCursor, BinaryReader, Packet, Parser, parse_hex_input};
 
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
@@ -286,6 +289,17 @@ mod tests {
             vec![1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0],
             cursor.bytes
         );
+    }
+
+    #[test]
+    fn decodes_literal_from_hex_input() -> anyhow::Result<()> {
+        let reader = parse_hex_input("D2FE28");
+        assert_eq!("110100101111111000101000", reader.input);
+
+        let packets = reader.decode()?;
+        assert_eq!(1, packets.len());
+        assert_eq!(Packet::literal(6, 4, 2021), packets[0]);
+        Ok(())
     }
 
     #[test]
