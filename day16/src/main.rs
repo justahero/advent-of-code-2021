@@ -12,14 +12,8 @@ struct BinaryCursor {
 }
 
 impl<'a> BinaryCursor {
-    pub fn new(bytes: String) -> Self {
-        let bytes = bytes
-            .chars()
-            .filter_map(|b| b.to_digit(2))
-            .map(|v| v as u8)
-            .collect_vec();
-
-        Self { bytes, index: 0 }
+    pub fn new(bytes: &[u8]) -> Self {
+        Self { bytes: bytes.iter().cloned().collect_vec(), index: 0 }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -50,9 +44,18 @@ impl<'a> BinaryCursor {
         Ok(result)
     }
 
+    /// Skips the number of bits in the Binary stream
+    pub fn skip_bits(&mut self, num_bits: u16) {
+        self.index += num_bits as usize;
+    }
+
     /// Forwards the cursor to the next full byte
     pub fn seek_next_byte(&mut self) {
         self.index = ((self.index + 8) / 8) * 8;
+    }
+
+    pub fn slice(&self, next_bits: u16) -> &[u8] {
+        &self.bytes[self.index..][..next_bits as usize]
     }
 }
 
@@ -67,7 +70,12 @@ impl Display for BinaryCursor {
 
 impl From<&str> for BinaryCursor {
     fn from(input: &str) -> Self {
-        Self::new(input.to_string())
+        let bytes = input
+            .chars()
+            .filter_map(|b| b.to_digit(2))
+            .map(|v| v as u8)
+            .collect_vec();
+        Self::new(&bytes)
     }
 }
 
@@ -78,9 +86,9 @@ struct Parser {
 }
 
 impl Parser {
-    pub fn new(input: &str) -> Self {
+    pub fn new(bytes: &[u8]) -> Self {
         Self {
-            cursor: BinaryCursor::from(input),
+            cursor: BinaryCursor::new(bytes),
         }
     }
 
@@ -113,6 +121,21 @@ impl Parser {
         self.cursor.seek_next_byte();
         Ok(result)
     }
+
+    pub fn skip_bits(&mut self, num_bits: u16) {
+        self.cursor.skip_bits(num_bits);
+    }
+
+    pub fn slice(&self, next_bits: u16) -> &[u8] {
+        self.cursor.slice(next_bits)
+    }
+}
+
+impl From<&str> for Parser {
+    /// Creates a new Parser from a binary String with '0' and '1'
+    fn from(input: &str) -> Self {
+        Self { cursor: BinaryCursor::from(input) }
+    }
 }
 
 #[derive(Debug)]
@@ -129,7 +152,7 @@ impl BinaryReader {
     }
 
     pub fn decode(&self) -> Result<(), anyhow::Error> {
-        let mut parser = Parser::new(self.input.as_str());
+        let mut parser = Parser::from(self.input.as_str());
         while !parser.is_empty() {
             Self::read_packet(&mut parser)?;
         }
@@ -155,6 +178,11 @@ impl BinaryReader {
                     let total_length = parser.read_bits(15)?;
                     // let packets_parser = Parser { cursor: };
                     println!("Total length: {}", total_length);
+
+                    // parse the next number of bits
+                    let mut sub_parser = Parser::new(parser.slice(total_length));
+                    Self::read_packet(&mut sub_parser)?;
+                    parser.skip_bits(total_length);
                 } else {
                     let num_packets = parser.read_bits(11)?;
                     println!("Num packets: {}", num_packets);
@@ -190,7 +218,7 @@ mod tests {
     #[test]
     fn check_cursor_read_bits() -> anyhow::Result<()> {
         let input = "110100101111111000101000";
-        let mut cursor = BinaryCursor::new(input.to_string());
+        let mut cursor = BinaryCursor::from(input);
         assert_eq!(0b110, cursor.read_bits(3)?);
         assert_eq!(0b100, cursor.read_bits(3)?);
         assert_eq!(0b10111, cursor.read_bits(5)?);
@@ -203,7 +231,7 @@ mod tests {
     #[test]
     fn check_forward_byte() -> anyhow::Result<()> {
         let input = "1101000011000000";
-        let mut cursor = BinaryCursor::new(input.to_string());
+        let mut cursor = BinaryCursor::from(input);
         assert_eq!(0b1101, cursor.read_bits(4)?);
         cursor.seek_next_byte();
         assert_eq!(0b1100, cursor.read_bits(4)?);
@@ -214,7 +242,7 @@ mod tests {
     fn check_parse_literal() -> anyhow::Result<()> {
         // 5 bits for each literal packet, 1 indicating to continue, 0 the last packet
         let input = "1101100011";
-        let mut parser = Parser::new(input);
+        let mut parser = Parser::from(input);
         let literal = parser.read_literal()?;
         assert_eq!(0b10110011, literal);
         Ok(())
@@ -238,7 +266,7 @@ mod tests {
 
     #[test]
     fn decode_hexadecimal_examples() {
-        let reader = parse_hex_input("8A004A801A8002F478");
-        assert!(reader.decode().is_ok());
+        assert!(parse_hex_input("8A004A801A8002F478").decode().is_ok());
+        assert!(parse_hex_input("EE00D40C823060").decode().is_ok());
     }
 }
