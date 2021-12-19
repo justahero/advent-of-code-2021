@@ -45,7 +45,7 @@ impl<'a> BinaryCursor {
         }
         self.index += bits;
 
-        println!("Read {} bits: {:0width$b}, index: {}", bits, result, self.index, width = bits);
+        // println!("Read {} bits: {:0width$b}, index: {}", bits, result, self.index, width = bits);
 
         Ok(result)
     }
@@ -103,14 +103,13 @@ impl Parser {
         let mut result = 0_u16;
         loop {
             let bits = self.cursor.read_bits(5)?;
-            result = result.shl(4) + bits & 0xF as u16;
+            result = result.shl(4) + (bits & 0xF as u16);
             if bits & 0b10000 >= 1 {
                 continue;
             }
             break;
         }
         self.cursor.seek_next_byte();
-        println!(":::: INDEX:: {}", self.cursor.index);
         Ok(result)
     }
 }
@@ -211,10 +210,11 @@ mod tests {
 
     #[test]
     fn check_parse_literal() -> anyhow::Result<()> {
-        let input = "11011000";
+        // 5 bits for each literal packet, 1 indicating to continue, 0 the last packet
+        let input = "1101100011";
         let mut parser = Parser::new(input);
         let literal = parser.read_literal()?;
-        assert_eq!(0b1011, literal);
+        assert_eq!(0b10110011, literal);
         Ok(())
     }
 
