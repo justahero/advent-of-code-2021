@@ -42,6 +42,13 @@ impl<'a> BinaryCursor {
     pub fn seek_next_byte(&mut self) {
         self.index = (self.index / 8 + 1) * 8;
     }
+
+    /// Reads the 5 bit literal, returns a tuple containing a bool to indicate to continue reading the literal
+    /// and 4 bits that make up the literal.
+    pub fn read_literal(&mut self) -> (bool, u8) {
+        let bits = self.read_bits(5);
+        (bits & 0b10000 > 1, bits & 0xF)
+    }
 }
 
 #[derive(Debug)]
@@ -67,7 +74,10 @@ impl BinaryReader {
             match typeId {
                 Self::LITERAL => {
                     // parse literal
-                    
+                    let mut result = 0;
+                    loop {
+                        
+                    }
                 },
                 _ => panic!(),
             }
@@ -102,5 +112,14 @@ mod tests {
         assert_eq!(0b1101, cursor.read_bits(4));
         cursor.seek_next_byte();
         assert_eq!(0b1100, cursor.read_bits(4));
+    }
+
+    #[test]
+    fn check_read_literal() {
+        let input = &[0b11011000];
+        let mut cursor = BinaryCursor::new(&input[..]);
+        let (next, literal) = cursor.read_literal();
+        assert!(next);
+        assert_eq!(0b1011, literal);
     }
 }
