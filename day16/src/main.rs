@@ -74,8 +74,8 @@ struct Parser {
 }
 
 impl Parser {
-    pub fn new(bytes: &[u8]) -> Self {
-        Self { cursor: BinaryCursor::new(bytes) }
+    pub fn new(input: &str) -> Self {
+        Self { cursor: BinaryCursor::from(input) }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -106,11 +106,6 @@ impl Parser {
         result
     }
 }
-impl From<&str> for Parser {
-    fn from(input: &str) -> Self {
-        Self { cursor: BinaryCursor::from(input) }
-    }
-}
 
 #[derive(Debug)]
 struct BinaryReader {
@@ -127,7 +122,7 @@ impl BinaryReader {
     }
 
     pub fn decode(&self) -> Result<(), anyhow::Error> {
-        let mut cursor = Parser::from(self.input.as_str());
+        let mut cursor = Parser::new(self.input.as_str());
         while !cursor.is_empty() {
             Self::parse(&mut cursor)?;
         }
@@ -198,8 +193,8 @@ mod tests {
 
     #[test]
     fn check_parse_literal() -> Result<(), anyhow::Error> {
-        let input = &[0b11011000];
-        let mut parser = Parser::new(&input[..]);
+        let input = "11011000";
+        let mut parser = Parser::new(input);
         let literal = parser.read_literal();
         assert_eq!(0b1011, literal);
         Ok(())
