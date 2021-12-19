@@ -3,9 +3,26 @@ use std::{fmt::Display, ops::Shl};
 use itertools::Itertools;
 
 #[derive(Debug)]
-enum Packet {
+enum PacketType {
     Literal(u16),
     Operator,
+}
+
+#[derive(Debug)]
+struct Packet {
+    pub version: u16,
+    pub type_id: u16,
+    pub data: PacketType,
+}
+
+impl Packet {
+    pub fn literal(version: u16, type_id: u16, literal: u16) -> Self {
+        Self { version, type_id, data: PacketType::Literal(literal) }
+    }
+
+    pub fn operator(version: u16, type_id: u16) -> Self {
+        Self { version, type_id, data: PacketType::Operator }
+    }
 }
 
 /// A basic cursor that reads the binary stream sequentially, handles internal cursor
@@ -172,33 +189,39 @@ impl BinaryReader {
         Self { input }
     }
 
-    pub fn decode(&self) -> Result<(), anyhow::Error> {
+    pub fn decode(&self) -> Result<Vec<Packet>, anyhow::Error> {
         let mut parser = Parser::from(self.input.as_str());
+        let mut packets = Vec::new();
+
         while !parser.is_empty() {
-            Self::read_packet(&mut parser)?;
+            let packet = Self::read_packet(&mut parser)?;
+            packets.push(packet);
         }
-        Ok(())
+
+        Ok(packets)
     }
 
     // Parses the binary input
-    fn read_packet(parser: &mut Parser) -> Result<(), anyhow::Error> {
+    fn read_packet(parser: &mut Parser) -> Result<Packet, anyhow::Error> {
         // read packet header
         let (version, type_id) = parser.read_header()?;
 
         println!("VERSION: {}, Type ID: {}", version, type_id);
 
-        match type_id {
+        let packet = match type_id {
             Self::LITERAL => {
                 let literal = parser.read_literal()?;
                 println!("Literal: {}", literal);
+                Packet::literal(version, type_id, literal)
             }
             _ => {
                 // read operator and sub packets
-                let packet = parser.read_operator()?;
+                let _ = parser.read_operator()?;
+                Packet::operator(version, type_id)
             }
-        }
+        };
 
-        Ok(())
+        Ok(packet)
     }
 }
 
