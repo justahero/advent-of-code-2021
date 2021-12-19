@@ -42,14 +42,41 @@ impl Operator {
             .sum::<usize>()
     }
 
-    pub fn calculate(&self) -> u32 {
-        todo!("needs implementation.")
+    pub fn calculate(&self) -> u64 {
+        let iter = self.packets.iter();
+        match self.kind {
+            OperatorType::Sum => iter.map(|p| p.calculate()).sum::<u64>(),
+            OperatorType::Product => iter.fold(1_u64, |product, p| product * p.calculate()),
+            OperatorType::Min => iter.map(|p| p.calculate()).min().unwrap_or(0),
+            OperatorType::Max => iter.map(|p| p.calculate()).max().unwrap_or(0),
+            OperatorType::GreaterThan => {
+                if self.packets[0].calculate() > self.packets[1].calculate() {
+                    1
+                } else {
+                    0
+                }
+            },
+            OperatorType::LessThan => {
+                if self.packets[0].calculate() < self.packets[1].calculate() {
+                    1
+                } else {
+                    0
+                }
+            }
+            OperatorType::Equal => {
+                if self.packets[0].calculate() == self.packets[1].calculate() {
+                    1
+                } else {
+                    0
+                }
+            },
+        }
     }
 }
 
 #[derive(Debug, PartialEq)]
 enum PacketType {
-    Literal(u16),
+    Literal(u64),
     Operator(Operator),
 }
 
@@ -61,7 +88,7 @@ struct Packet {
 }
 
 impl Packet {
-    pub fn literal(version: u16, type_id: u16, literal: u16) -> Self {
+    pub fn literal(version: u16, type_id: u16, literal: u64) -> Self {
         Self {
             version,
             type_id,
@@ -77,8 +104,11 @@ impl Packet {
         }
     }
 
-    pub fn calculate(&self) -> u32 {
-        0
+    pub fn calculate(&self) -> u64 {
+        match &self.data {
+            PacketType::Literal(literal) => *literal as u64,
+            PacketType::Operator(operator) => operator.calculate(),
+        }
     }
 }
 
@@ -194,11 +224,11 @@ impl Parser {
     }
 
     /// Reads the literal in 5 bits chunk until completes.
-    pub fn read_literal(&mut self) -> anyhow::Result<u16> {
-        let mut result = 0_u16;
+    pub fn read_literal(&mut self) -> anyhow::Result<u64> {
+        let mut result = 0_u64;
         loop {
-            let bits = self.cursor.read_bits(5)?;
-            result = result.shl(4) + (bits & 0xF as u16);
+            let bits = self.cursor.read_bits(5)? as u64;
+            result = result.shl(4) + (bits & 0xF);
             if bits & 0b10000 >= 1 {
                 continue;
             }
@@ -252,9 +282,6 @@ impl BinaryReader {
     fn read_packet(parser: &mut Parser) -> Result<Packet, anyhow::Error> {
         // read packet header
         let (version, id) = parser.read_header()?;
-
-        println!("VERSION: {}, Type ID: {}", version, id);
-
         let packet = match id {
             4 => Packet::literal(version, id, parser.read_literal()?),
             operator => {
@@ -278,12 +305,9 @@ impl BinaryReader {
         let mode = parser.read_bits(1)?;
         let packets = if mode == 0 {
             let total_length = parser.read_bits(15)?;
-            // let packets_parser = Parser { cursor: };
-            println!("Total length: {}", total_length);
 
             // parse the next number of bits until total length is exhausted
             let mut sub_parser = Parser::new(parser.slice(total_length));
-            println!("SUB PARSER: {}", sub_parser);
 
             let mut result = Vec::new();
             while !sub_parser.is_empty() {
@@ -296,7 +320,6 @@ impl BinaryReader {
         } else {
             let num_packets = parser.read_bits(11)?;
 
-            println!("Num packets: {}", num_packets);
             let mut sub_packets = Vec::new();
             for _ in 0..num_packets {
                 let packet = Self::read_packet(parser)?;
@@ -323,9 +346,13 @@ fn parse_hex_input(hexadecimal: &str) -> BinaryReader {
 fn main() -> anyhow::Result<()> {
     let reader = parse_hex_input(include_str!("input.txt"));
 
+    // first part
     let packet = reader.decode()?;
     dbg!(packet.count_version());
 
+    // second part
+    dbg!(packet.calculate());
+    // result 9864180602 is too low
     Ok(())
 }
 
