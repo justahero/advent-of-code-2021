@@ -5,7 +5,7 @@ use itertools::Itertools;
 #[derive(Debug, PartialEq)]
 enum PacketType {
     Literal(u16),
-    Operator,
+    Operator(Box<Vec<Packet>>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -20,8 +20,20 @@ impl Packet {
         Self { version, type_id, data: PacketType::Literal(literal) }
     }
 
-    pub fn operator(version: u16, type_id: u16) -> Self {
-        Self { version, type_id, data: PacketType::Operator }
+    pub fn operator(version: u16, type_id: u16, sub_packets: Vec<Packet>) -> Self {
+        Self { version, type_id, data: PacketType::Operator(Box::new(sub_packets)) }
+    }
+}
+
+impl Packet {
+    pub fn count_version_numbers(&self) -> usize {
+        let count = match &self.data {
+            PacketType::Operator(sub_packets) => {
+                sub_packets.iter().map(|packet| packet.count_version_numbers()).sum::<usize>()
+            },
+            _ => 0,
+        };
+        self.version as usize + count as usize
     }
 }
 
@@ -40,7 +52,7 @@ impl<'a> BinaryCursor {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.index >= (self.bytes.len() - 1)
+        self.index >= self.bytes.len() - 1
     }
 
     // 11010010_11111110_00101000
@@ -84,10 +96,8 @@ impl<'a> BinaryCursor {
 
 impl Display for BinaryCursor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in &self.bytes {
-            write!(f, "{:b}", byte)?;
-        }
-        Ok(())
+        let bytes = self.bytes.iter().map(|x| format!("{:b}", x)).join("");
+        write!(f, "Cursor {{ index: {}, bytes: {} }}", self.index, bytes)
     }
 }
 
@@ -140,28 +150,11 @@ impl Parser {
             }
             break;
         }
-        self.cursor.seek_next_byte();
         Ok(result)
     }
 
-    /// Reads the operator packet
-    pub fn read_operator(&mut self) -> anyhow::Result<()> {
-        let mode = self.read_bits(1)?;
-        if mode == 0 {
-            let total_length = self.read_bits(15)?;
-            // let packets_parser = Parser { cursor: };
-            println!("Total length: {}", total_length);
-
-            // parse the next number of bits
-            let sub_parser = Parser::new(self.cursor.slice(total_length));
-            // Self::read_packet(&mut sub_parser)?;
-            self.cursor.skip_bits(total_length);
-        } else {
-            let num_packets = self.cursor.read_bits(11)?;
-            println!("Num packets: {}", num_packets);
-        }
-
-        Ok(())
+    pub fn slice(&self, next_bits: u16) -> &[u8] {
+        self.cursor.slice(next_bits)
     }
 
     pub fn skip_bits(&mut self, num_bits: u16) {
@@ -173,6 +166,12 @@ impl From<&str> for Parser {
     /// Creates a new Parser from a binary String with '0' and '1'
     fn from(input: &str) -> Self {
         Self { cursor: BinaryCursor::from(input) }
+    }
+}
+
+impl Display for Parser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Parser {{ {} }}", self.cursor)
     }
 }
 
@@ -210,8 +209,38 @@ impl BinaryReader {
             }
             _ => {
                 // read operator and sub packets
-                let _ = parser.read_operator()?;
-                Packet::operator(version, type_id)
+                let mode = parser.read_bits(1)?;
+                let sub_packets = if mode == 0 {
+                    let total_length = parser.read_bits(15)?;
+                    // let packets_parser = Parser { cursor: };
+                    println!("Total length: {}", total_length);
+
+                    // parse the next number of bits until total length is exhausted
+                    let mut sub_parser = Parser::new(parser.slice(total_length));
+                    println!("SUB PARSER: {}", sub_parser);
+                    
+                    let mut result = Vec::new();
+                    while !sub_parser.is_empty() {
+                        let packet =  Self::read_packet(&mut sub_parser)?;
+                        println!("  SUB PACKET: {:?}", packet);
+                        println!("  CURRENT: {}", sub_parser);
+                        result.push(packet);
+                    }
+
+                    result
+                } else {
+                    let num_packets = parser.read_bits(11)?;
+
+                    println!("Num packets: {}", num_packets);
+                    let mut sub_packets = Vec::new();
+                    for _ in 0..num_packets {
+                        let packet = Self::read_packet(parser)?;
+                        sub_packets.push(packet);
+                    }
+                    sub_packets
+                };
+
+                Packet::operator(version, type_id, sub_packets)
             }
         };
 
@@ -234,7 +263,9 @@ fn parse_hex_input(hexadecimal: &str) -> BinaryReader {
 
 fn main() -> anyhow::Result<()> {
     let reader = parse_hex_input(include_str!("input.txt"));
-    reader.decode()?;
+
+    let packet = reader.decode()?;
+    dbg!(packet.count_version_numbers());
 
     Ok(())
 }
@@ -296,14 +327,24 @@ mod tests {
     }
 
     #[test]
-    fn decode_binary_input_example() {
+    fn decode_operator_packet_with_two_sub_packets() -> anyhow::Result<()> {
         let reader = parse_hex_input("38006F45291200");
-        assert!(reader.decode().is_ok());
+        let expected = Packet::operator(1, 6, vec![
+            Packet::literal(6, 4, 10),
+            Packet::literal(2, 4, 20),
+        ]);
+
+        assert_eq!(expected, reader.decode()?);
+
+        Ok(())
     }
 
     #[test]
-    fn decode_hexadecimal_examples() {
-        assert!(parse_hex_input("8A004A801A8002F478").decode().is_ok());
-        assert!(parse_hex_input("EE00D40C823060").decode().is_ok());
+    fn count_versions_in_transmissions() -> anyhow::Result<()> {
+        assert_eq!(16, parse_hex_input("8A004A801A8002F478").decode()?.count_version_numbers());
+        assert_eq!(12, parse_hex_input("620080001611562C8802118E34").decode()?.count_version_numbers());
+        assert_eq!(23, parse_hex_input("C0015000016115A2E0802F182340").decode()?.count_version_numbers());
+        assert_eq!(31, parse_hex_input("A0016C880162017C3686B18A3D4780").decode()?.count_version_numbers());
+        Ok(())
     }
 }
