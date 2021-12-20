@@ -8,13 +8,6 @@ struct Rect {
     pub right: i32,
 }
 
-impl Rect {
-    /// Returns true if the given coordinates are inside the Rect
-    pub fn contains(&self, x: i32, y: i32) -> bool {
-        self.left <= x && x <= self.right && self.bottom <= y && y <= self.top
-    }
-}
-
 impl From<&str> for Rect {
     fn from(line: &str) -> Self {
         let regex = Regex::new(r"^target area: x=(-?\d*)..(-?\d*), y=(-?\d*)..(-?\d*)$").unwrap();
@@ -37,41 +30,40 @@ impl From<&str> for Rect {
 /// Finds the highest possible y height value
 fn find_highest_y(input: &str) -> i32 {
     let rect = Rect::from(input);
-
     println!("RECT: {:?}", rect);
-    let mut v = 0;
 
-    let mut vel = 'outer: loop {
+    // Try to find direct calculation
+
+    // Note it's possible to find a start velocity that misses the target, but a higher velocity might fit it again
+
+    let mut start_v = 0;
+    let vel = 'outer: loop {
         let mut y = 0;
-        let mut vel_y = v;
-        println!("V: {}", v);
+        let mut vel_y = start_v;
+
+        println!("Round vel: {}", vel_y);
+
         'inner: loop {
             y += vel_y;
             vel_y -= 1;
 
-            println!("  y: {}, vel: {}", y, vel_y);
+            // println!("  y: {}, vel: {}, top: {}, bottom: {}", y, vel_y, rect.top, rect.bottom);
+
             if rect.bottom <= y && y <= rect.top {
+                // hit the target, exit the loop
                 break 'inner;
             } else if y < rect.bottom {
-                break 'outer v - 1;
+                // we missed the target height, use the previous velocity
+                break 'outer start_v - 1;
             }
         }
 
-        v += 1;
+        // hit the mark, increase the velocity
+        start_v += 1;
     };
 
-    println!("RECT: {:?}", rect);
-    let mut highest_y = 0;
-    let mut y = 0;
-    loop {
-        y += vel;
-        highest_y = std::cmp::max(y, highest_y);
-        vel -= 1;
-        if vel < 0 {
-            break;
-        }
-    }
-    highest_y
+    // calculate the highest y mark directly
+    (vel * (vel + 1)) / 2
 }
 
 fn main() {
@@ -79,6 +71,7 @@ fn main() {
 
     let y = find_highest_y(input);
     dbg!(y);
+    // 820 is too low
 }
 
 #[cfg(test)]

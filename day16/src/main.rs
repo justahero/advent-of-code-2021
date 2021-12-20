@@ -168,11 +168,6 @@ impl<'a> BinaryCursor {
         self.index += num_bits as usize;
     }
 
-    /// Forwards the cursor to the next full byte
-    pub fn seek_next_byte(&mut self) {
-        self.index = ((self.index + 8) / 8) * 8;
-    }
-
     pub fn slice(&self, next_bits: u16) -> &[u8] {
         &self.bytes[self.index..][..next_bits as usize]
     }
