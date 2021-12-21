@@ -31,12 +31,6 @@ enum Node {
     Branch { left: Box<Node>, right: Box<Node> },
 }
 
-impl Node {
-    pub fn branch(left: Node, right: Node) -> Self {
-        Node::Branch { left: Box::new(left), right: Box::new(right) }
-    }
-}
-
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
@@ -52,6 +46,32 @@ impl TryFrom<&str> for Node {
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
         line_parser::parse(line).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
+    }
+}
+
+impl Node {
+    pub fn branch(left: Node, right: Node) -> Self {
+        Node::Branch { left: Box::new(left), right: Box::new(right) }
+    }
+
+    /// If this node can explode, update the binary tree & return `true`, otherwise return `false`
+    pub fn explode(&mut self) -> bool {
+        if let Some(pair) = &mut self.can_explode(0) {
+            println!("FOUND EXPLODING PAIR: {:?}", pair);
+        }
+        false
+    }
+
+    fn can_explode(&self, depth: u32) -> Option<&Node> {
+        if let Node::Branch { left, right } = self {
+            if depth >= 4 {
+                if let (Node::Leaf(_), Node::Leaf(_)) = (left.as_ref(), right.as_ref()) {
+                    return Some(&self);
+                }
+            }
+            return left.can_explode(depth + 1).or(right.can_explode(depth + 1));
+        }
+        None
     }
 }
 
@@ -120,5 +140,13 @@ mod tests {
             "[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]",
             table.sum().to_string()
         );
+    }
+
+    #[test]
+    fn test_exploding_examples() -> anyhow::Result<()> {
+        assert!(Node::try_from("[[[[[9,8],1],2],3],4]")?.explode());
+        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode());
+        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode());
+        Ok(())
     }
 }
