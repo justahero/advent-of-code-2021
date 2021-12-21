@@ -32,14 +32,20 @@ peg::parser! {
 #[derive(Debug)]
 enum Node {
     Leaf(u8),
-    Branch { left: Box<Node>, right: Box<Node>, depth: u32 },
+    Branch {
+        left: Box<Node>,
+        right: Box<Node>,
+        depth: u32,
+    },
 }
 
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Node::Leaf(v) => format!("{}", v),
-            Node::Branch { left, right, ..} => format!("[{},{}]", left.to_string(), right.to_string()),
+            Node::Branch { left, right, .. } => {
+                format!("[{},{}]", left.to_string(), right.to_string())
+            }
         };
         write!(f, "{}", s)
     }
@@ -55,7 +61,11 @@ impl TryFrom<&str> for Node {
 
 impl Node {
     pub fn branch(left: Node, right: Node, depth: u32) -> Self {
-        Node::Branch { left: Box::new(left), right: Box::new(right), depth }
+        Node::Branch {
+            left: Box::new(left),
+            right: Box::new(right),
+            depth,
+        }
     }
 
     /// Checks if a Node in this tree can explodes.
@@ -96,13 +106,31 @@ impl Node {
             Node::Branch { left, right, .. } => match from_left {
                 true => left.merge(from_left, value),
                 false => right.merge(from_left, value),
-            }
+            },
         }
     }
 
     /// Checks if a Node needs to be split
-    pub fn split(&mut self) -> Option<()> {
-
+    pub fn split(&mut self, depth: u32) -> Option<()> {
+        match self {
+            Node::Leaf(value) => {
+                if *value >= 10 {
+                    // split into a new Node
+                    let left = Node::Leaf((*value as f32 / 2.0).floor() as u8);
+                    let right = Node::Leaf((*value as f32 / 2.0).ceil() as u8);
+                    *self = Node::Branch {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        depth,
+                    };
+                    return Some(());
+                }
+            }
+            Node::Branch { left, right, depth } => {
+                left.split(*depth + 1)?;
+                right.split(*depth + 1)?;
+            }
+        }
         None
     }
 }
@@ -149,7 +177,9 @@ mod tests {
         assert!(Node::try_from("[[1,9],[8,5]]").is_ok());
         assert!(Node::try_from("[[[[1,2],[3,4]],[[5,6],[7,8]]],9]").is_ok());
         assert!(Node::try_from("[[[9,[3,8]],[[0,9],6]],[[[3,7],[4,9]],3]]").is_ok());
-        assert!(Node::try_from("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]").is_ok());
+        assert!(
+            Node::try_from("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]").is_ok()
+        );
         Ok(())
     }
 
