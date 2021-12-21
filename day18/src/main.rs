@@ -16,26 +16,30 @@ peg::parser! {
         rule close()
             = "]"
 
-        rule pair() -> Node
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Node::branch(l, r) }
+        rule pair(depth: u32) -> Node
+            = open() l:(literal() / pair((depth + 1))) comma() r:(literal() / pair((depth + 1))) close() {
+                Node::branch(l, r, depth)
+            }
 
-        pub(crate) rule parse() -> Node
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Node::branch(l, r) }
+        pub(crate) rule parse(depth: u32) -> Node
+            = open() l:(literal() / pair((depth + 1))) comma() r:(literal() / pair((depth + 1))) close() {
+                Node::branch(l, r, depth)
+            }
     }
 }
 
-/// A binary tree representation
+/// A binary tree representation?
 #[derive(Debug)]
 enum Node {
     Leaf(u8),
-    Branch { left: Box<Node>, right: Box<Node> },
+    Branch { left: Box<Node>, right: Box<Node>, depth: u32 },
 }
 
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Node::Leaf(v) => format!("{}", v),
-            Node::Branch { left, right} => format!("[{},{}]", left.to_string(), right.to_string()),
+            Node::Branch { left, right, ..} => format!("[{},{}]", left.to_string(), right.to_string()),
         };
         write!(f, "{}", s)
     }
@@ -45,31 +49,31 @@ impl TryFrom<&str> for Node {
     type Error = anyhow::Error;
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
-        line_parser::parse(line).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
+        line_parser::parse(line, 0).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
     }
 }
 
 impl Node {
-    pub fn branch(left: Node, right: Node) -> Self {
-        Node::Branch { left: Box::new(left), right: Box::new(right) }
+    pub fn branch(left: Node, right: Node, depth: u32) -> Self {
+        Node::Branch { left: Box::new(left), right: Box::new(right), depth }
     }
 
     /// If this node can explode, update the binary tree & return `true`, otherwise return `false`
     pub fn explode(&mut self) -> bool {
-        if let Some(pair) = &mut self.can_explode(0) {
+        if let Some(pair) = &mut self.can_explode() {
             println!("FOUND EXPLODING PAIR: {:?}", pair);
         }
         false
     }
 
-    fn can_explode(&self, depth: u32) -> Option<&Node> {
-        if let Node::Branch { left, right } = self {
-            if depth >= 4 {
+    fn can_explode(&self) -> Option<&Node> {
+        if let Node::Branch { left, right, depth } = self {
+            if *depth >= 4 {
                 if let (Node::Leaf(_), Node::Leaf(_)) = (left.as_ref(), right.as_ref()) {
                     return Some(&self);
                 }
             }
-            return left.can_explode(depth + 1).or(right.can_explode(depth + 1));
+            return left.can_explode().or(right.can_explode());
         }
         None
     }
