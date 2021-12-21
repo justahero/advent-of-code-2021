@@ -4,8 +4,8 @@ use std::fmt::Display;
 // Simple grammar to parse snailfish pairs
 peg::parser! {
     grammar line_parser() for str {
-        rule literal() -> Pair
-            = l:$(['0'..='9']+) { Pair::Literal(l.parse::<u8>().unwrap()) }
+        rule literal() -> Node
+            = l:$(['0'..='9']+) { Node::Leaf(l.parse::<u8>().unwrap()) }
 
         rule comma()
             = ","
@@ -16,31 +16,38 @@ peg::parser! {
         rule close()
             = "]"
 
-        rule pair() -> Pair
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Pair::Pair(Box::new(l), Box::new(r)) }
+        rule pair() -> Node
+            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Node::branch(l, r) }
 
-        pub(crate) rule parse() -> Pair
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Pair::Pair(Box::new(l), Box::new(r)) }
+        pub(crate) rule parse() -> Node
+            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Node::branch(l, r) }
     }
 }
 
+/// A binary tree representation
 #[derive(Debug)]
-enum Pair {
-    Literal(u8),
-    Pair(Box<Pair>, Box<Pair>),
+enum Node {
+    Leaf(u8),
+    Branch { left: Box<Node>, right: Box<Node> },
 }
 
-impl Display for Pair {
+impl Node {
+    pub fn branch(left: Node, right: Node) -> Self {
+        Node::Branch { left: Box::new(left), right: Box::new(right) }
+    }
+}
+
+impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Pair::Literal(v) => format!("{}", v),
-            Pair::Pair(left, right) => format!("[{},{}]", left.to_string(), right.to_string()),
+            Node::Leaf(v) => format!("{}", v),
+            Node::Branch { left, right} => format!("[{},{}]", left.to_string(), right.to_string()),
         };
         write!(f, "{}", s)
     }
 }
 
-impl TryFrom<&str> for Pair {
+impl TryFrom<&str> for Node {
     type Error = anyhow::Error;
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
@@ -49,16 +56,16 @@ impl TryFrom<&str> for Pair {
 }
 
 struct Table {
-    pub pairs: Vec<Pair>,
+    pub pairs: Vec<Node>,
 }
 
 impl Table {
-    pub fn new(pairs: Vec<Pair>) -> Self {
+    pub fn new(pairs: Vec<Node>) -> Self {
         Self { pairs }
     }
 
-    pub fn sum(&self) -> Pair {
-        Pair::Literal(1)
+    pub fn sum(&self) -> Node {
+        Node::Leaf(1)
     }
 }
 
@@ -67,7 +74,7 @@ fn parse_input(input: &str) -> anyhow::Result<Table> {
         .lines()
         .map(str::trim)
         .filter(|&line| !line.is_empty())
-        .map(Pair::try_from)
+        .map(Node::try_from)
         .collect::<anyhow::Result<Vec<_>>>()?;
     Ok(Table::new(pairs))
 }
@@ -80,17 +87,17 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Pair};
+    use crate::{parse_input, Node};
 
     #[test]
     fn can_parse_pairs() -> anyhow::Result<()> {
-        assert!(Pair::try_from("[1,2]").is_ok());
-        assert!(Pair::try_from("[[1,2],3]").is_ok());
-        assert!(Pair::try_from("[9,[8,7]]").is_ok());
-        assert!(Pair::try_from("[[1,9],[8,5]]").is_ok());
-        assert!(Pair::try_from("[[[[1,2],[3,4]],[[5,6],[7,8]]],9]").is_ok());
-        assert!(Pair::try_from("[[[9,[3,8]],[[0,9],6]],[[[3,7],[4,9]],3]]").is_ok());
-        assert!(Pair::try_from("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]").is_ok());
+        assert!(Node::try_from("[1,2]").is_ok());
+        assert!(Node::try_from("[[1,2],3]").is_ok());
+        assert!(Node::try_from("[9,[8,7]]").is_ok());
+        assert!(Node::try_from("[[1,9],[8,5]]").is_ok());
+        assert!(Node::try_from("[[[[1,2],[3,4]],[[5,6],[7,8]]],9]").is_ok());
+        assert!(Node::try_from("[[[9,[3,8]],[[0,9],6]],[[[3,7],[4,9]],3]]").is_ok());
+        assert!(Node::try_from("[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]").is_ok());
         Ok(())
     }
 
