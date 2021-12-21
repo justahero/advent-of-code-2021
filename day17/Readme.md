@@ -1,5 +1,7 @@
 # Day 17
 
+## 1st solution
+
 Directly calculate min & max velocity x.
 
 * example: `target x=20..30`
