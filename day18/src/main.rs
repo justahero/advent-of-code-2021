@@ -58,7 +58,7 @@ impl Node {
         Node::Branch { left: Box::new(left), right: Box::new(right), depth }
     }
 
-    /// Checks if one node in this tree can explodes.
+    /// Checks if a Node in this tree can explodes.
     /// In order to explode one pair needs to be at least in a certain depth.
     /// In case it explodeds, the values of the pair are returned in an Option and the pair is replaced.
     pub fn explode(&mut self) -> Option<(u8, u8)> {
@@ -98,6 +98,12 @@ impl Node {
                 false => right.merge(from_left, value),
             }
         }
+    }
+
+    /// Checks if a Node needs to be split
+    pub fn split(&mut self) -> Option<()> {
+
+        None
     }
 }
 
@@ -170,9 +176,26 @@ mod tests {
 
     #[test]
     fn test_exploding_examples() -> anyhow::Result<()> {
-        assert!(Node::try_from("[[[[[9,8],1],2],3],4]")?.explode().is_some());
-        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode().is_some());
-        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode().is_some());
+        let examples = vec![
+            "[[[[[9,8],1],2],3],4]",
+            "[7,[6,[5,[4,[3,2]]]]]",
+            "[[6,[5,[4,[3,2]]]],1]",
+            "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]",
+            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
+        ];
+        let solutions = vec![
+            "[[[[0,9],2],3],4]",
+            "[7,[6,[5,[7,0]]]]",
+            "[[6,[5,[7,0]]],3]",
+            "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
+            "[[3,[2,[8,0]]],[9,[5,[7,0]]]]",
+        ];
+
+        for (&input, &expected) in examples.iter().zip(solutions.iter()) {
+            let mut node = Node::try_from(input)?;
+            assert!(node.explode().is_some());
+            assert_eq!(expected, &node.to_string());
+        }
         Ok(())
     }
 }
