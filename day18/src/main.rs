@@ -4,8 +4,8 @@ use std::fmt::Display;
 // Simple grammar to parse snailfish pairs
 peg::parser! {
     grammar line_parser() for str {
-        rule literal() -> Node
-            = l:$(['0'..='9']+) { Node::Leaf(l.parse::<u8>().unwrap()) }
+        rule literal(depth: u32) -> Node
+            = l:$(['0'..='9']+) { Node::leaf(l.parse::<u8>().unwrap(), depth) }
 
         rule comma()
             = ","
@@ -16,13 +16,8 @@ peg::parser! {
         rule close()
             = "]"
 
-        rule pair(depth: u32) -> Node
-            = open() l:(literal() / pair((depth + 1))) comma() r:(literal() / pair((depth + 1))) close() {
-                Node::branch(l, r, depth)
-            }
-
-        pub(crate) rule parse(depth: u32) -> Node
-            = open() l:(literal() / pair((depth + 1))) comma() r:(literal() / pair((depth + 1))) close() {
+        pub(crate) rule pair(depth: u32) -> Node
+            = open() l:(literal((depth + 1)) / pair((depth + 1))) comma() r:(literal((depth + 1)) / pair((depth + 1))) close() {
                 Node::branch(l, r, depth)
             }
     }
@@ -31,7 +26,10 @@ peg::parser! {
 /// A binary tree representation?
 #[derive(Debug)]
 enum Node {
-    Leaf(u8),
+    Leaf {
+        value: u8,
+        depth: u32,
+    },
     Branch {
         left: Box<Node>,
         right: Box<Node>,
@@ -42,7 +40,7 @@ enum Node {
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Node::Leaf(v) => format!("{}", v),
+            Node::Leaf { value, .. } => format!("{}", value),
             Node::Branch { left, right, .. } => {
                 format!("[{},{}]", left.to_string(), right.to_string())
             }
@@ -55,11 +53,18 @@ impl TryFrom<&str> for Node {
     type Error = anyhow::Error;
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
-        line_parser::parse(line, 0).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
+        line_parser::pair(line, 0).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
     }
 }
 
 impl Node {
+    pub fn leaf(value: u8, depth: u32) -> Self {
+        Node::Leaf {
+            value,
+            depth,
+        }
+    }
+
     pub fn branch(left: Node, right: Node, depth: u32) -> Self {
         Node::Branch {
             left: Box::new(left),
@@ -75,14 +80,14 @@ impl Node {
         if let Node::Branch { left, right, depth } = self {
             if *depth >= 4 {
                 let a = match **left {
-                    Node::Leaf(value) => value,
+                    Node::Leaf { value, ..} => value,
                     _ => panic!("Not a leaf."),
                 };
                 let b = match **right {
-                    Node::Leaf(value) => value,
+                    Node::Leaf { value, ..} => value,
                     _ => panic!("Not a leaf."),
                 };
-                *self = Node::Leaf(0);
+                *self = Node::leaf(0, *depth);
                 return Some((a, b));
             } else {
                 if let Some((a, b)) = left.explode() {
@@ -102,7 +107,7 @@ impl Node {
     /// Merges the exploded inner pair into the current Node or left / right node
     fn merge(&mut self, from_left: bool, value: u8) {
         match self {
-            Node::Leaf(current) => *current += value,
+            Node::Leaf { value: current, .. } => *current += value,
             Node::Branch { left, right, .. } => match from_left {
                 true => left.merge(from_left, value),
                 false => right.merge(from_left, value),
@@ -111,24 +116,24 @@ impl Node {
     }
 
     /// Checks if a Node needs to be split
-    pub fn split(&mut self, depth: u32) -> Option<()> {
+    pub fn split(&mut self) -> Option<()> {
         match self {
-            Node::Leaf(value) => {
+            Node::Leaf { value, depth } => {
                 if *value >= 10 {
                     // split into a new Node
-                    let left = Node::Leaf((*value as f32 / 2.0).floor() as u8);
-                    let right = Node::Leaf((*value as f32 / 2.0).ceil() as u8);
+                    let left = Node::leaf((*value as f32 / 2.0).floor() as u8, *depth + 1);
+                    let right = Node::leaf((*value as f32 / 2.0).ceil() as u8, * depth + 1);
                     *self = Node::Branch {
                         left: Box::new(left),
                         right: Box::new(right),
-                        depth,
+                        depth: *depth,
                     };
                     return Some(());
                 }
             }
             Node::Branch { left, right, depth } => {
-                left.split(*depth + 1)?;
-                right.split(*depth + 1)?;
+                left.split()?;
+                right.split()?;
             }
         }
         None
@@ -145,7 +150,7 @@ impl Table {
     }
 
     pub fn sum(&self) -> Node {
-        Node::Leaf(1)
+        Node::leaf(1, 0)
     }
 }
 
