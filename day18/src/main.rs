@@ -58,24 +58,46 @@ impl Node {
         Node::Branch { left: Box::new(left), right: Box::new(right), depth }
     }
 
-    /// If this node can explode, update the binary tree & return `true`, otherwise return `false`
-    pub fn explode(&mut self) -> bool {
-        if let Some(pair) = &mut self.can_explode() {
-            println!("FOUND EXPLODING PAIR: {:?}", pair);
-        }
-        false
-    }
-
-    fn can_explode(&self) -> Option<&Node> {
+    /// Checks if one node in this tree can explodes.
+    /// In order to explode one pair needs to be at least in a certain depth.
+    /// In case it explodeds, the values of the pair are returned in an Option and the pair is replaced.
+    pub fn explode(&mut self) -> Option<(u8, u8)> {
         if let Node::Branch { left, right, depth } = self {
             if *depth >= 4 {
-                if let (Node::Leaf(_), Node::Leaf(_)) = (left.as_ref(), right.as_ref()) {
-                    return Some(&self);
+                let a = match **left {
+                    Node::Leaf(value) => value,
+                    _ => panic!("Not a leaf."),
+                };
+                let b = match **right {
+                    Node::Leaf(value) => value,
+                    _ => panic!("Not a leaf."),
+                };
+                *self = Node::Leaf(0);
+                return Some((a, b));
+            } else {
+                if let Some((a, b)) = left.explode() {
+                    right.merge(true, b);
+                    return Some((a, 0));
+                }
+                if let Some((a, b)) = right.explode() {
+                    left.merge(false, a);
+                    return Some((0, b));
                 }
             }
-            return left.can_explode().or(right.can_explode());
         }
+
         None
+    }
+
+    /// Merges the exploded inner pair into the current Node or left / right node
+    fn merge(&mut self, from_left: bool, value: u8) {
+        match self {
+            Node::Leaf(current) => *current += value,
+            Node::Branch { left, right, .. } => match from_left {
+                true => left.merge(from_left, value),
+                false => right.merge(from_left, value),
+            }
+        }
     }
 }
 
@@ -148,9 +170,9 @@ mod tests {
 
     #[test]
     fn test_exploding_examples() -> anyhow::Result<()> {
-        assert!(Node::try_from("[[[[[9,8],1],2],3],4]")?.explode());
-        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode());
-        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode());
+        assert!(Node::try_from("[[[[[9,8],1],2],3],4]")?.explode().is_some());
+        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode().is_some());
+        assert!(Node::try_from("[7,[6,[5,[4,[3,2]]]]]")?.explode().is_some());
         Ok(())
     }
 }
