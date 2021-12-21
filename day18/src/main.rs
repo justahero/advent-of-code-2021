@@ -1,11 +1,11 @@
 use anyhow::anyhow;
 use std::fmt::Display;
 
-// "[1,2]"
+// Simple grammar to parse snailfish pairs
 peg::parser! {
     grammar line_parser() for str {
-        rule literal() -> Value
-            = l:$(['0'..='9']+) { Value::Literal(l.parse::<u8>().unwrap()) }
+        rule literal() -> Pair
+            = l:$(['0'..='9']+) { Pair::Literal(l.parse::<u8>().unwrap()) }
 
         rule comma()
             = ","
@@ -16,48 +16,27 @@ peg::parser! {
         rule close()
             = "]"
 
-        rule pair() -> Value
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Value::Pair(Pair::new(l, r)) }
+        rule pair() -> Pair
+            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Pair::Pair(Box::new(l), Box::new(r)) }
 
         pub(crate) rule parse() -> Pair
-            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Pair::new(l, r) }
+            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() { Pair::Pair(Box::new(l), Box::new(r)) }
     }
 }
 
 #[derive(Debug)]
-enum Value {
+enum Pair {
     Literal(u8),
-    Pair(Pair),
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Value::Literal(v) => format!("{}", v),
-            Value::Pair(pair) => format!("[{},{}]", pair.left.to_string(), pair.right.to_string()),
-        };
-        write!(f, "{}", s)
-    }
-}
-
-#[derive(Debug)]
-struct Pair {
-    pub left: Box<Value>,
-    pub right: Box<Value>,
-}
-
-impl Pair {
-    pub fn new(left: Value, right: Value) -> Self {
-        Self {
-            left: Box::new(left),
-            right: Box::new(right),
-        }
-    }
+    Pair(Box<Pair>, Box<Pair>),
 }
 
 impl Display for Pair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Pair [{},{}]", self.left, self.right)
+        let s = match self {
+            Pair::Literal(v) => format!("{}", v),
+            Pair::Pair(left, right) => format!("[{},{}]", left.to_string(), right.to_string()),
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -78,8 +57,8 @@ impl Table {
         Self { pairs }
     }
 
-    pub fn sum(&self) -> Value {
-        Value::Literal(1)
+    pub fn sum(&self) -> Pair {
+        Pair::Literal(1)
     }
 }
 
@@ -94,7 +73,6 @@ fn parse_input(input: &str) -> anyhow::Result<Table> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let hello = Pair::try_from("[[1,2],3]")?;
     let pairs = parse_input(include_str!("input.txt"))?;
 
     Ok(())
