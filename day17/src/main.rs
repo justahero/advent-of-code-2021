@@ -27,43 +27,40 @@ impl From<&str> for Rect {
     }
 }
 
+/// Calculates the parabola of the start y velocity, if it hits the target area return true, otherwise false
+fn parabola(start_velocity: i32, rect: &Rect) -> bool {
+    let mut y = 0;
+    let mut vel = start_velocity;
+    loop {
+        y += vel;
+        vel -= 1;
+        println!("  y: {}, vel: {}", y, vel);
+
+        if rect.bottom <= y && y <= rect.top {
+            return true;
+        } else if y < rect.bottom {
+            break;
+        }
+    }
+    false
+}
+
 /// Finds the highest possible y height value
 fn find_highest_y(input: &str) -> i32 {
     let rect = Rect::from(input);
     println!("RECT: {:?}", rect);
 
-    // Try to find direct calculation
-
-    // Note it's possible to find a start velocity that misses the target, but a higher velocity might fit it again
-
-    let mut start_v = 0;
-    let vel = 'outer: loop {
-        let mut y = 0;
-        let mut vel_y = start_v;
-
-        println!("Round vel: {}", vel_y);
-
-        'inner: loop {
-            y += vel_y;
-            vel_y -= 1;
-
-            // println!("  y: {}, vel: {}, top: {}, bottom: {}", y, vel_y, rect.top, rect.bottom);
-
-            if rect.bottom <= y && y <= rect.top {
-                // hit the target, exit the loop
-                break 'inner;
-            } else if y < rect.bottom {
-                // we missed the target height, use the previous velocity
-                break 'outer start_v - 1;
-            }
-        }
-
-        // hit the mark, increase the velocity
-        start_v += 1;
-    };
-
     // calculate the highest y mark directly
+    let vel = (rect.bottom + 1).abs();
     (vel * (vel + 1)) / 2
+}
+
+/// Finds all velocities that hit the target area
+fn find_all_velocities(input: &str) -> i32 {
+    let rect = Rect::from(input);
+    println!("RECT: {:?}", rect);
+
+    0
 }
 
 fn main() {
@@ -71,16 +68,24 @@ fn main() {
 
     let y = find_highest_y(input);
     dbg!(y);
-    // 820 is too low
+
+    let count = find_all_velocities(input);
+    dbg!(count);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::find_highest_y;
+    use crate::{find_all_velocities, find_highest_y};
 
     #[test]
     fn test_find_highest_y() {
         let input = "target area: x=20..30, y=-10..-5";
         assert_eq!(45, find_highest_y(input));
+    }
+
+    #[test]
+    fn test_find_all_initial_velocities() {
+        let input = "target area: x=20..30, y=-10..-5";
+        assert_eq!(112, find_all_velocities(input));
     }
 }
