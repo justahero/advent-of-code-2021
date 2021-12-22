@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 use std::{fmt::Display, ops::Add};
 
 // Simple grammar to parse snailfish pairs
@@ -180,7 +181,16 @@ impl Table {
             while result.reduce() {}
             result
         })
+    }
 
+    /// 2nd half of the assignment
+    pub fn largest_magnitude(&self) -> u32 {
+        let max = self.pairs.iter().permutations(2).map(|pair| {
+            let mut result = Node::branch(pair[0].clone(), pair[1].clone());
+            while result.reduce() {}
+            result.magnitude()
+        }).max().expect("No max value found.");
+        max
     }
 }
 
@@ -199,6 +209,9 @@ fn main() -> anyhow::Result<()> {
 
     let sum = pairs.sum();
     dbg!(sum.magnitude());
+
+    let highest = pairs.largest_magnitude();
+    dbg!(highest);
 
     Ok(())
 }
@@ -309,5 +322,23 @@ mod tests {
         assert_eq!(3488, Node::try_from("[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]")?.magnitude());
 
         Ok(())
+    }
+
+    #[test]
+    fn find_largest_magnitude_pair() {
+        let input = r#"
+            [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
+            [[[5,[2,8]],4],[5,[[9,9],0]]]
+            [6,[[[6,2],[5,6]],[[7,6],[4,7]]]]
+            [[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]
+            [[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]
+            [[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]
+            [[[[5,4],[7,7]],8],[[8,3],8]]
+            [[9,3],[[9,9],[6,[4,9]]]]
+            [[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]
+            [[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]
+        "#;
+        let table = parse_input(input).expect("Failed to parse input.");
+        assert_eq!(3993, table.largest_magnitude());
     }
 }
