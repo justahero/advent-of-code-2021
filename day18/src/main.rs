@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use itertools::Itertools;
 use std::{fmt::Display, ops::Add};
 
 // Simple grammar to parse snailfish pairs
@@ -92,11 +91,12 @@ impl Node {
         self.do_explode(0).is_some()
     }
 
-    /// Checks if a Node in this tree can explodes.
+    /// Checks if a Node in this tree can explode.
     /// In order to explode one pair needs to be at least in a certain depth.
-    /// In case it explodeds, the values of the pair are returned in an Option and the pair is replaced.
+    /// In case it explodeds, the values of the pair are returned in an Option and merged up..
     fn do_explode(&mut self, depth: u32) -> Option<(u8, u8)> {
         if let Node::Branch { left, right } = self {
+            // println!("do_explode left: {:?}, right: {:?} depth: {}", left, right, depth);
             if depth >= 4 {
                 let a = match **left {
                     Node::Leaf { value, .. } => value,
@@ -150,8 +150,12 @@ impl Node {
                 }
             }
             Node::Branch { left, right } => {
-                left.split()?;
-                right.split()?;
+                if let Some(_) = left.split() {
+                    return Some(());
+                }
+                if let Some(_) = right.split() {
+                    return Some(());
+                };
             }
         }
         None
@@ -178,10 +182,6 @@ impl Table {
         })
 
     }
-
-    pub fn magnitude(&self) -> u32 {
-        0
-    }
 }
 
 fn parse_input(input: &str) -> anyhow::Result<Table> {
@@ -196,6 +196,9 @@ fn parse_input(input: &str) -> anyhow::Result<Table> {
 
 fn main() -> anyhow::Result<()> {
     let pairs = parse_input(include_str!("input.txt"))?;
+
+    let sum = pairs.sum();
+    dbg!(sum.magnitude());
 
     Ok(())
 }
@@ -219,7 +222,28 @@ mod tests {
     }
 
     #[test]
-    fn calculate_example_sum() {
+    fn calculate_sum_example() {
+        let input = r#"
+            [[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]
+            [7,[[[3,7],[4,3]],[[6,3],[8,8]]]]
+            [[2,[[0,8],[3,4]]],[[[6,7],1],[7,[1,6]]]]
+            [[[[2,4],7],[6,[0,5]]],[[[6,8],[2,8]],[[2,1],[4,5]]]]
+            [7,[5,[[3,8],[1,4]]]]
+            [[2,[2,2]],[8,[8,1]]]
+            [2,9]
+            [1,[[[9,3],9],[[9,0],[0,7]]]]
+            [[[5,[7,4]],7],1]
+            [[[[4,2],2],6],[8,7]]
+        "#;
+        let table = parse_input(input).expect("Failed to parse input.");
+        assert_eq!(
+            "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]",
+            table.sum().to_string()
+        );
+    }
+
+    #[test]
+    fn calculate_sum_2nd_example() {
         let input = r#"
             [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
             [[[5,[2,8]],4],[5,[[9,9],0]]]
