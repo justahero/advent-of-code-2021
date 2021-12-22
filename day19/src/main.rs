@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ops::{Add, Sub}};
+use std::{collections::HashSet, fmt::Display, ops::{Add, Sub}};
 
 use itertools::Itertools;
 
@@ -46,6 +46,12 @@ impl Point {
             _ => unreachable!(),
         };
         Self { x, y, z }
+    }
+}
+
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
 
@@ -104,10 +110,17 @@ impl Report {
     /// First bring find the best alignment of the 2nd list of points, if there
     /// are more than 12 shared beacons, return this list.
     pub fn shared_beacons(&self, beacons: &mut HashSet<Point>) -> Option<Point> {
+        println!(
+            "shared_beacons: {}, beacons: {}",
+            self.points.len(),
+            beacons.len()
+        );
+
         // try to find the alignment
         for alignment in 0..Point::NUM_ALIGNMENTS {
             // first rotate & flip all points
-            let rotated_points = self.points
+            let rotated_points = self
+                .points
                 .iter()
                 .map(|p| p.rotate(alignment as u8))
                 .collect::<Vec<_>>();
@@ -121,7 +134,10 @@ impl Report {
 
             for distance in &distances {
                 let translated_points = rotated_points.iter().map(|p| p + distance);
-                let count = translated_points.clone().filter(|p| self.points.contains(p)).count();
+                let count = translated_points
+                    .clone()
+                    .filter(|p| self.points.contains(p))
+                    .count();
 
                 // when there are at least 12 shared points, we consider both scanners in range of each other
                 if count >= 12 {
@@ -137,8 +153,21 @@ impl Report {
 
 impl From<&str> for Report {
     fn from(line: &str) -> Self {
-        let points = line.lines().skip(1).map(Point::from).collect::<HashSet<_>>();
+        let points = line
+            .lines()
+            .skip(1)
+            .map(Point::from)
+            .collect::<HashSet<_>>();
         Self { points }
+    }
+}
+
+impl Display for Report {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for p in &self.points {
+            writeln!(f, "{}", p)?;
+        }
+        Ok(())
     }
 }
 
@@ -146,7 +175,7 @@ impl From<&str> for Report {
 fn shared_beacons(reports: Vec<Report>) -> usize {
     let mut distances = Vec::new();
     let mut beacons = reports[0].points.iter().cloned().collect::<HashSet<_>>();
-    
+
     distances.push(Point::new(0, 0, 0));
     for report in reports.iter().skip(1) {
         if let Some(distance) = report.shared_beacons(&mut beacons) {
