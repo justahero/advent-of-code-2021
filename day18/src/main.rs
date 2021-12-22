@@ -174,7 +174,7 @@ impl Table {
     pub fn sum(&self) -> Node {
         self.pairs.iter().skip(1).fold(self.pairs[0].clone(), |result, next| {
             let mut result = Node::Branch {
-                left: Box::new(result.clone()),
+                left: Box::new(result),
                 right: Box::new(next.clone()),
             };
             while result.reduce() {}
@@ -261,6 +261,7 @@ mod tests {
             "[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]",
             table.sum().to_string()
         );
+        assert_eq!(4140, table.sum().magnitude());
     }
 
     #[test]
@@ -300,6 +301,13 @@ mod tests {
 
     #[test]
     fn calculate_magnitudes() -> anyhow::Result<()> {
+        assert_eq!(143, Node::try_from("[[1,2],[[3,4],5]]")?.magnitude());
+        assert_eq!(1384, Node::try_from("[[[[0,7],4],[[7,8],[6,0]]],[8,1]]")?.magnitude());
+        assert_eq!(445, Node::try_from("[[[[1,1],[2,2]],[3,3]],[4,4]]")?.magnitude());
+        assert_eq!(791, Node::try_from("[[[[3,0],[5,3]],[4,4]],[5,5]]")?.magnitude());
+        assert_eq!(1137, Node::try_from("[[[[5,0],[7,4]],[5,5]],[6,6]]")?.magnitude());
+        assert_eq!(3488, Node::try_from("[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]")?.magnitude());
+
         Ok(())
     }
 }
