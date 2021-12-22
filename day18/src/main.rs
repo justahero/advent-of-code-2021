@@ -1,11 +1,11 @@
 use anyhow::anyhow;
-use std::fmt::Display;
+use std::{fmt::Display, ops::Add};
 
 // Simple grammar to parse snailfish pairs
 peg::parser! {
     grammar line_parser() for str {
-        rule literal(depth: u32) -> Node
-            = l:$(['0'..='9']+) { Node::leaf(l.parse::<u8>().unwrap(), depth) }
+        rule literal() -> Node
+            = l:$(['0'..='9']+) { Node::leaf(l.parse::<u8>().unwrap()) }
 
         rule comma()
             = ","
@@ -16,9 +16,9 @@ peg::parser! {
         rule close()
             = "]"
 
-        pub(crate) rule pair(depth: u32) -> Node
-            = open() l:(literal((depth + 1)) / pair((depth + 1))) comma() r:(literal((depth + 1)) / pair((depth + 1))) close() {
-                Node::branch(l, r, depth)
+        pub(crate) rule pair() -> Node
+            = open() l:(literal() / pair()) comma() r:(literal() / pair()) close() {
+                Node::branch(l, r)
             }
     }
 }
@@ -28,12 +28,10 @@ peg::parser! {
 enum Node {
     Leaf {
         value: u8,
-        depth: u32,
     },
     Branch {
         left: Box<Node>,
         right: Box<Node>,
-        depth: u32,
     },
 }
 
@@ -53,32 +51,41 @@ impl TryFrom<&str> for Node {
     type Error = anyhow::Error;
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
-        line_parser::pair(line, 0).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
+        line_parser::pair(line).map_err(|e| anyhow!("Failed to parse line '{}': {}", line, e))
+    }
+}
+
+impl Add for Node {
+    type Output = Node;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Node::Branch { left: Box::new(self), right: Box::new(rhs) }
     }
 }
 
 impl Node {
-    pub fn leaf(value: u8, depth: u32) -> Self {
-        Node::Leaf {
-            value,
-            depth,
-        }
+    pub fn leaf(value: u8) -> Self {
+        Node::Leaf { value }
     }
 
-    pub fn branch(left: Node, right: Node, depth: u32) -> Self {
+    pub fn branch(left: Node, right: Node) -> Self {
         Node::Branch {
             left: Box::new(left),
             right: Box::new(right),
-            depth,
         }
+    }
+
+    /// Returns true when there is an exploding pair, updates the binary tree accordingly
+    pub fn explode(&mut self) -> bool {
+        self.do_explode(0).is_some()
     }
 
     /// Checks if a Node in this tree can explodes.
     /// In order to explode one pair needs to be at least in a certain depth.
     /// In case it explodeds, the values of the pair are returned in an Option and the pair is replaced.
-    pub fn explode(&mut self) -> Option<(u8, u8)> {
-        if let Node::Branch { left, right, depth } = self {
-            if *depth >= 4 {
+    fn do_explode(&mut self, depth: u32) -> Option<(u8, u8)> {
+        if let Node::Branch { left, right } = self {
+            if depth >= 4 {
                 let a = match **left {
                     Node::Leaf { value, ..} => value,
                     _ => panic!("Not a leaf."),
@@ -87,14 +94,14 @@ impl Node {
                     Node::Leaf { value, ..} => value,
                     _ => panic!("Not a leaf."),
                 };
-                *self = Node::leaf(0, *depth);
+                *self = Node::leaf(0);
                 return Some((a, b));
             } else {
-                if let Some((a, b)) = left.explode() {
+                if let Some((a, b)) = left.do_explode(depth + 1) {
                     right.merge(true, b);
                     return Some((a, 0));
                 }
-                if let Some((a, b)) = right.explode() {
+                if let Some((a, b)) = right.do_explode(depth + 1) {
                     left.merge(false, a);
                     return Some((0, b));
                 }
@@ -118,20 +125,19 @@ impl Node {
     /// Checks if a Node needs to be split
     pub fn split(&mut self) -> Option<()> {
         match self {
-            Node::Leaf { value, depth } => {
+            Node::Leaf { value } => {
                 if *value >= 10 {
                     // split into a new Node
-                    let left = Node::leaf((*value as f32 / 2.0).floor() as u8, *depth + 1);
-                    let right = Node::leaf((*value as f32 / 2.0).ceil() as u8, * depth + 1);
+                    let left = Node::leaf((*value as f32 / 2.0).floor() as u8);
+                    let right = Node::leaf((*value as f32 / 2.0).ceil() as u8);
                     *self = Node::Branch {
                         left: Box::new(left),
                         right: Box::new(right),
-                        depth: *depth,
                     };
                     return Some(());
                 }
             }
-            Node::Branch { left, right, depth } => {
+            Node::Branch { left, right } => {
                 left.split()?;
                 right.split()?;
             }
@@ -150,7 +156,7 @@ impl Table {
     }
 
     pub fn sum(&self) -> Node {
-        Node::leaf(1, 0)
+        Node::leaf(1)
     }
 }
 
@@ -228,9 +234,20 @@ mod tests {
 
         for (&input, &expected) in examples.iter().zip(solutions.iter()) {
             let mut node = Node::try_from(input)?;
-            assert!(node.explode().is_some());
+            assert!(node.explode());
             assert_eq!(expected, &node.to_string());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_pairs() -> anyhow::Result<()> {
+        let lhs = Node::try_from("[1,2]")?;
+        let rhs = Node::try_from("[[3,4],5]")?;
+
+        let result = lhs + rhs;
+        assert_eq!("[[1,2],[[3,4],5]]", result.to_string());
+
         Ok(())
     }
 }
