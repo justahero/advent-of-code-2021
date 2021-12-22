@@ -14,6 +14,8 @@
 * scanners do not know their rotation / or facing direction
   * 24 possible combinations of alignment
   * alignment changes beacon points all at the same time, same way
+* a scanner has N beacons (for example 1st scanner)
+  * other beacons may share the same beacons
 
 Goal is to find positions of all beacons / scanners: Ho many beacons are there?
 
