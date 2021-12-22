@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 use std::{fmt::Display, ops::Add};
 
 // Simple grammar to parse snailfish pairs
@@ -24,15 +25,10 @@ peg::parser! {
 }
 
 /// A binary tree representation?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Node {
-    Leaf {
-        value: u8,
-    },
-    Branch {
-        left: Box<Node>,
-        right: Box<Node>,
-    },
+    Leaf { value: u8 },
+    Branch { left: Box<Node>, right: Box<Node> },
 }
 
 impl Display for Node {
@@ -59,7 +55,10 @@ impl Add for Node {
     type Output = Node;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Node::Branch { left: Box::new(self), right: Box::new(rhs) }
+        Node::Branch {
+            left: Box::new(self),
+            right: Box::new(rhs),
+        }
     }
 }
 
@@ -75,6 +74,19 @@ impl Node {
         }
     }
 
+    /// Calculates the magnitude recursively
+    pub fn magnitude(&self) -> u32 {
+        match self {
+            Node::Leaf { value } => *value as u32,
+            Node::Branch { left, right } => 3 * left.magnitude() + 2 * right.magnitude(),
+        }
+    }
+
+    /// Returns `true` if this Node reduces further, otherwise `false`
+    pub fn reduce(&mut self) -> bool {
+        self.explode() || self.split().is_some()
+    }
+
     /// Returns true when there is an exploding pair, updates the binary tree accordingly
     pub fn explode(&mut self) -> bool {
         self.do_explode(0).is_some()
@@ -87,11 +99,11 @@ impl Node {
         if let Node::Branch { left, right } = self {
             if depth >= 4 {
                 let a = match **left {
-                    Node::Leaf { value, ..} => value,
+                    Node::Leaf { value, .. } => value,
                     _ => panic!("Not a leaf."),
                 };
                 let b = match **right {
-                    Node::Leaf { value, ..} => value,
+                    Node::Leaf { value, .. } => value,
                     _ => panic!("Not a leaf."),
                 };
                 *self = Node::leaf(0);
@@ -156,7 +168,19 @@ impl Table {
     }
 
     pub fn sum(&self) -> Node {
-        Node::leaf(1)
+        self.pairs.iter().skip(1).fold(self.pairs[0].clone(), |result, next| {
+            let mut result = Node::Branch {
+                left: Box::new(result.clone()),
+                right: Box::new(next.clone()),
+            };
+            while result.reduce() {}
+            result
+        })
+
+    }
+
+    pub fn magnitude(&self) -> u32 {
+        0
     }
 }
 
@@ -247,7 +271,11 @@ mod tests {
 
         let result = lhs + rhs;
         assert_eq!("[[1,2],[[3,4],5]]", result.to_string());
+        Ok(())
+    }
 
+    #[test]
+    fn calculate_magnitudes() -> anyhow::Result<()> {
         Ok(())
     }
 }
