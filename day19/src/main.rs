@@ -51,6 +51,11 @@ impl Point {
         };
         Self { x, y, z }
     }
+
+    pub fn manhattan(&self, rhs: &Point) -> usize {
+        let Self { x, y, z } = self;
+        ((rhs.x - x).abs() + (rhs.y - y).abs() + (rhs.z - z).abs()) as usize
+    }
 }
 
 impl Display for Point {
@@ -173,23 +178,35 @@ impl Display for Report {
 }
 
 /// Retruns the number of shared beacons
-fn shared_beacons(mut reports: Vec<Report>) -> usize {
+fn shared_beacons(mut reports: Vec<Report>) -> (Vec<Point>, HashSet<Point>) {
     // All reports are relative to the first
     let mut distances = Vec::with_capacity(reports.len() + 1);
     distances.push(Point::new(0, 0, 0));
     let mut beacons = reports[0].points.iter().cloned().collect::<HashSet<_>>();
+    reports.remove(0);
 
     while !reports.is_empty() {
-        for index in (0..reports.len()).rev() {
+        for index in 0..reports.len() {
             if let Some((distance, transformed_beacons)) = reports[index].find_beacons(&beacons) {
                 beacons.extend(transformed_beacons);
                 distances.push(distance);
-                reports.swap_remove(index);
+                reports.remove(index);
+                break;
             }
         }
     }
 
-    beacons.len()
+    (distances, beacons)
+}
+
+/// Calculates the largest manhatten distance between scanners
+fn manhattan_distance(distances: Vec<Point>) -> usize {
+    distances
+        .iter()
+        .tuple_combinations()
+        .map(|(l, r)| l.manhattan(r))
+        .max()
+        .unwrap()
 }
 
 /// Parses the list of scanner reports
@@ -199,15 +216,15 @@ fn parse_input(input: &str) -> Vec<Report> {
 
 fn main() {
     let reports = parse_input(include_str!("input.txt"));
+    let (distances, beacons) = shared_beacons(reports);
 
-    // get first solution
-    dbg!(shared_beacons(reports));
-    // 116 is too low
+    dbg!(beacons.len());
+    dbg!(manhattan_distance(distances));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, shared_beacons};
+    use crate::{manhattan_distance, parse_input, shared_beacons};
 
     const INPUT: &str = include_str!("example.txt");
 
@@ -220,6 +237,14 @@ mod tests {
     #[test]
     fn test_shared_number_of_beacons() {
         let reports = parse_input(INPUT);
-        assert_eq!(79, shared_beacons(reports));
+        let (_distances, beacons) = shared_beacons(reports);
+        assert_eq!(79, beacons.len());
+    }
+
+    #[test]
+    fn test_manhattan_distances() {
+        let reports = parse_input(INPUT);
+        let (distances, _beacons) = shared_beacons(reports);
+        assert_eq!(3621, manhattan_distance(distances));
     }
 }
