@@ -117,7 +117,7 @@ impl Report {
     ///
     /// First find the best alignment of the report, if there
     /// are more than 12 shared beacons, update the given beacons list.
-    pub fn find_beacons(&self, beacons: &mut HashSet<Point>) -> Option<Point> {
+    pub fn find_beacons(&self, beacons: &HashSet<Point>) -> Option<(Point, HashSet<Point>)> {
         // try to find the alignment
         for alignment in 0..Point::NUM_ALIGNMENTS {
             // first rotate & flip all points
@@ -132,7 +132,7 @@ impl Report {
                 .iter()
                 .cartesian_product(&rotated_points)
                 .map(|(l, r)| l - r)
-                .collect_vec();
+                .collect::<HashSet<_>>();
 
             for distance in &distances {
                 let translated_points = rotated_points.iter().map(|p| p + distance);
@@ -143,8 +143,7 @@ impl Report {
 
                 // when there are at least 12 shared points, we consider both scanners in range of each other
                 if count >= 12 {
-                    beacons.extend(translated_points);
-                    return Some(distance.clone());
+                    return Some((distance.clone(), translated_points.collect::<HashSet<_>>()));
                 }
             }
         }
@@ -174,18 +173,20 @@ impl Display for Report {
 }
 
 /// Retruns the number of shared beacons
-fn shared_beacons(reports: Vec<Report>) -> usize {
-    let mut distances = Vec::new();
+fn shared_beacons(mut reports: Vec<Report>) -> usize {
+    // All reports are relative to the first
+    let mut distances = Vec::with_capacity(reports.len() + 1);
+    distances.push(Point::new(0, 0, 0));
     let mut beacons = reports[0].points.iter().cloned().collect::<HashSet<_>>();
 
-    distances.push(Point::new(0, 0, 0));
-    for report in reports.iter().skip(1) {
-        if let Some(distance) = report.find_beacons(&mut beacons) {
-            distances.push(distance);
+    while !reports.is_empty() {
+        for index in (0..reports.len()).rev() {
+            if let Some((distance, transformed_beacons)) = reports[index].find_beacons(&beacons) {
+                beacons.extend(transformed_beacons);
+                distances.push(distance);
+                reports.swap_remove(index);
+            }
         }
-
-        // TODO remove here, only used to compare at least one other scanner
-        // todo!();
     }
 
     beacons.len()
