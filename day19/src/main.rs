@@ -1,4 +1,8 @@
-use std::{collections::HashSet, fmt::Display, ops::{Add, Sub}};
+use std::{
+    collections::HashSet,
+    fmt::Display,
+    ops::{Add, Sub},
+};
 
 use itertools::Itertools;
 
@@ -59,7 +63,8 @@ impl Sub for Point {
     type Output = Point;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Point::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+        let Self { x, y, z } = self;
+        Point::new(x - rhs.x, y - rhs.y, z - rhs.z)
     }
 }
 
@@ -67,7 +72,8 @@ impl Sub for &Point {
     type Output = Point;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Point::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+        let Point { x, y, z } = self;
+        Point::new(x - rhs.x, y - rhs.y, z - rhs.z)
     }
 }
 
@@ -75,7 +81,8 @@ impl Add for Point {
     type Output = Point;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Point::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+        let Self { x, y, z } = self;
+        Point::new(x + rhs.x, y + rhs.y, z + rhs.z)
     }
 }
 
@@ -83,7 +90,8 @@ impl Add for &Point {
     type Output = Point;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Point::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+        let &Point { x, y, z } = self;
+        Point::new(x + rhs.x, y + rhs.y, z + rhs.z)
     }
 }
 
@@ -105,17 +113,11 @@ struct Report {
 }
 
 impl Report {
-    /// Finds and possibly returns shared beacons
+    /// Finds shared beacons.
     ///
-    /// First bring find the best alignment of the 2nd list of points, if there
-    /// are more than 12 shared beacons, return this list.
-    pub fn shared_beacons(&self, beacons: &mut HashSet<Point>) -> Option<Point> {
-        println!(
-            "shared_beacons: {}, beacons: {}",
-            self.points.len(),
-            beacons.len()
-        );
-
+    /// First find the best alignment of the report, if there
+    /// are more than 12 shared beacons, update the given beacons list.
+    pub fn find_beacons(&self, beacons: &mut HashSet<Point>) -> Option<Point> {
         // try to find the alignment
         for alignment in 0..Point::NUM_ALIGNMENTS {
             // first rotate & flip all points
@@ -136,7 +138,7 @@ impl Report {
                 let translated_points = rotated_points.iter().map(|p| p + distance);
                 let count = translated_points
                     .clone()
-                    .filter(|p| self.points.contains(p))
+                    .filter(|p| beacons.contains(p))
                     .count();
 
                 // when there are at least 12 shared points, we consider both scanners in range of each other
@@ -178,9 +180,12 @@ fn shared_beacons(reports: Vec<Report>) -> usize {
 
     distances.push(Point::new(0, 0, 0));
     for report in reports.iter().skip(1) {
-        if let Some(distance) = report.shared_beacons(&mut beacons) {
+        if let Some(distance) = report.find_beacons(&mut beacons) {
             distances.push(distance);
         }
+
+        // TODO remove here, only used to compare at least one other scanner
+        // todo!();
     }
 
     beacons.len()
@@ -196,6 +201,7 @@ fn main() {
 
     // get first solution
     dbg!(shared_beacons(reports));
+    // 116 is too low
 }
 
 #[cfg(test)]
