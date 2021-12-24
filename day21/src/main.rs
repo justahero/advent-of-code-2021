@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use itertools::Itertools;
 
 trait Roll {
@@ -8,18 +6,17 @@ trait Roll {
 
 struct DeterministicDice {
     pub start: u32,
-    pub count: u32,
 }
 
 impl Default for DeterministicDice {
     fn default() -> Self {
-        Self { start: 0, count: 0 }
+        Self { start: 0 }
     }
 }
 
 impl Roll for DeterministicDice {
     fn roll(&mut self, times: u32) -> Vec<u32> {
-        let values = (0..times).map(|step| ((self.start + 1) % 100) + 1).collect_vec();
+        let values = (1..=times).map(|step| ((self.start + step - 1) % 100) + 1).collect_vec();
         self.start += times;
         values
     }
@@ -62,19 +59,19 @@ impl Game {
     }
 
     /// Plays until one player wins, the returned tuple is (winner, loser)
-    pub fn play(&mut self, mut dice: impl Roll) -> Option<(&Player, &Player)> {
+    pub fn play(&mut self, mut dice: impl Roll, win_score: u32) -> Option<(&Player, &Player)> {
         for _ in 1.. {
             let values = dice.roll(3);
             self.roll_count += 3;
 
-            if self.player1.play(&values) >= 1000 {
+            if self.player1.play(&values) >= win_score {
                 return Some((&self.player1, &self.player2));
             }
 
             let values = dice.roll(3);
             self.roll_count += 3;
 
-            if self.player2.play(&values) >= 1000 {
+            if self.player2.play(&values) >= win_score {
                 return Some((&self.player2, &self.player1));
             }
         }
@@ -87,7 +84,7 @@ fn main() {
     // Given input, player1 starts at 7, player2 starts at 3.
     let mut game = Game::new(7, 3);
     let dice = DeterministicDice::default();
-    let (_winner, loser) = game.play(dice).unwrap();
+    let (_winner, loser) = game.play(dice, 1_000).unwrap();
     dbg!(loser.score * game.roll_count);
 }
 
@@ -99,7 +96,7 @@ mod tests {
     fn test_deterministic_game() {
         let mut game = Game::new(4, 8);
         let dice = DeterministicDice::default();
-        let (_winner, loser) = game.play(dice).unwrap();
+        let (_winner, loser) = game.play(dice, 1_000).unwrap();
         assert_eq!(739785, loser.score * game.roll_count);
     }
 }
