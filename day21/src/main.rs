@@ -59,20 +59,20 @@ impl Game {
     }
 
     /// Plays until one player wins, the returned tuple is (winner, loser)
-    pub fn play(&mut self, mut dice: impl Roll, win_score: u32) -> Option<(&Player, &Player)> {
+    pub fn play1(&mut self, mut dice: impl Roll, win_score: u32) -> Option<(u32, u32)> {
         for _ in 1.. {
             let values = dice.roll(3);
             self.roll_count += 3;
 
             if self.player1.play(&values) >= win_score {
-                return Some((&self.player1, &self.player2));
+                return Some((self.player1.score, self.player2.score));
             }
 
             let values = dice.roll(3);
             self.roll_count += 3;
 
             if self.player2.play(&values) >= win_score {
-                return Some((&self.player2, &self.player1));
+                return Some((self.player2.score, self.player1.score));
             }
         }
 
@@ -84,8 +84,8 @@ fn main() {
     // Given input, player1 starts at 7, player2 starts at 3.
     let mut game = Game::new(7, 3);
     let dice = DeterministicDice::default();
-    let (_winner, loser) = game.play(dice, 1_000).unwrap();
-    dbg!(loser.score * game.roll_count);
+    let (_winner, loser) = game.play1(dice, 1_000).unwrap();
+    dbg!(loser * game.roll_count);
 }
 
 #[cfg(test)]
@@ -96,7 +96,7 @@ mod tests {
     fn test_deterministic_game() {
         let mut game = Game::new(4, 8);
         let dice = DeterministicDice::default();
-        let (_winner, loser) = game.play(dice, 1_000).unwrap();
-        assert_eq!(739785, loser.score * game.roll_count);
+        let (_winner, loser) = game.play1(dice, 1_000).unwrap();
+        assert_eq!(739785, loser * game.roll_count);
     }
 }
