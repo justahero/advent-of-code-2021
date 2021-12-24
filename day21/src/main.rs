@@ -44,39 +44,32 @@ impl Player {
 
 #[derive(Debug)]
 struct Game {
-    pub player1: Player,
-    pub player2: Player,
-    pub roll_count: u32,
+    pub players: Vec<Player>,
 }
 
 impl Game {
     pub fn new(player1: u8, player2: u8) -> Self {
         Self {
-            player1: Player::new(player1),
-            player2: Player::new(player2),
-            roll_count: 0,
+            players: vec![Player::new(player1), Player::new(player2)],
         }
     }
 
-    /// Plays until one player wins, the returned tuple is (winner, loser)
-    pub fn play1(&mut self, mut dice: impl Roll, win_score: u32) -> Option<(u32, u32)> {
-        for _ in 1.. {
+    /// Plays until one player wins
+    pub fn play1(&mut self, mut dice: impl Roll) -> u32 {
+        let mut roll_count = 0_u32;
+
+        for index in (0..self.players.len()).cycle() {
             let values = dice.roll(3);
-            self.roll_count += 3;
+            roll_count += 3;
 
-            if self.player1.play(&values) >= win_score {
-                return Some((self.player1.score, self.player2.score));
-            }
-
-            let values = dice.roll(3);
-            self.roll_count += 3;
-
-            if self.player2.play(&values) >= win_score {
-                return Some((self.player2.score, self.player1.score));
+            if self.players[index].play(&values) >= 1000 {
+                break;
             }
         }
 
-        None
+        // get losing player
+        let score = self.players.iter().map(|p| p.score).min().unwrap();
+        score * roll_count
     }
 }
 
@@ -84,8 +77,8 @@ fn main() {
     // Given input, player1 starts at 7, player2 starts at 3.
     let mut game = Game::new(7, 3);
     let dice = DeterministicDice::default();
-    let (_winner, loser) = game.play1(dice, 1_000).unwrap();
-    dbg!(loser * game.roll_count);
+    let score = game.play1(dice);
+    dbg!(score);
 }
 
 #[cfg(test)]
@@ -96,7 +89,6 @@ mod tests {
     fn test_deterministic_game() {
         let mut game = Game::new(4, 8);
         let dice = DeterministicDice::default();
-        let (_winner, loser) = game.play1(dice, 1_000).unwrap();
-        assert_eq!(739785, loser * game.roll_count);
+        assert_eq!(739785, game.play1(dice));
     }
 }
