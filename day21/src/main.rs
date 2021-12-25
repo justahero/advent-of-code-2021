@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
@@ -40,22 +40,23 @@ impl Player {
         }
     }
 
-    pub fn roll(&mut self, dice: u32) -> u32 {
-        self.pos = ((self.pos - 1 + dice) % 10) + 1;
+    pub fn roll(&mut self, dice: u32) {
+        self.pos = (self.pos + dice - 1) % 10 + 1;
         self.score += self.pos;
-        self.score
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct Game {
     pub players: [Player; 2],
+    pub turn: u8,
 }
 
 impl Game {
     pub fn new(player1: u8, player2: u8) -> Self {
         Self {
             players: [Player::new(player1), Player::new(player2)],
+            turn: 0,
         }
     }
 
@@ -80,38 +81,43 @@ impl Game {
 
     pub fn play2(&mut self) -> usize {
         let mut cache = HashMap::new();
-        let result = self.play_recursive(&mut cache, 0);
-        println!("RESULT: {:?}", result);
-        *result.iter().max().unwrap()
+        let result = self.play_recursive(&mut cache);
+        std::cmp::max(result.0, result.1)
     }
 
-    fn play_recursive(&self, cache: &mut HashMap<Game, [usize; 2]>, index: usize) -> [usize; 2] {
-        if cache.contains_key(&self) {
-            return *cache.get(&self).unwrap();
+    fn play_recursive(&self, cache: &mut HashMap<Game, (usize, usize)>) -> (usize, usize) {
+        if self.players[0].score >= 21 {
+            return (1, 0);
         }
-
-        let mut result = [0, 0];
+        if self.players[1].score >= 21 {
+            return (0, 1);
+        }
 
         let rolls: Vec<_> = (1_u32..=3)
             .flat_map(|a| (1_u32..=3).flat_map(move |b| (1_u32..=3).map(move |c| a + b + c)))
             .collect();
 
+        let mut result = (0, 0);
+
         for roll in rolls.iter() {
             let mut next_game = self.clone();
+            let index = next_game.turn;
+            next_game.players[index as usize].roll(*roll);
+            next_game.turn = 1 - next_game.turn;
 
-            let player = next_game.players[index].borrow_mut();
-            player.roll(*roll);
+            let (wins1, wins2) = match cache.get(&next_game) {
+                Some(&res) => res,
+                None => {
+                    let r = next_game.play_recursive(cache);
+                    cache.insert(next_game, r);
+                    r
+                }
+            };
 
-            if player.score >= 21 {
-                result[index] += 1;
-            } else {
-                let r = next_game.play_recursive(cache, 1 - index);
-                result[0] += r[0];
-                result[1] += r[1];
-            }
+            result.0 += wins1;
+            result.1 += wins2;
         }
 
-        cache.insert(self.clone(), result);
         result
     }
 }
@@ -126,7 +132,6 @@ fn main() {
     let mut game = Game::new(7, 3);
     let score = game.play2();
     dbg!(score);
-    // 137221844288868 too low
 }
 
 #[cfg(test)]
