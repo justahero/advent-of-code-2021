@@ -78,44 +78,41 @@ impl Game {
         score * roll_count
     }
 
-    pub fn play2(&mut self) -> u128 {
-        let mut wins = [0_u128, 0];
-        let mut games = HashMap::from([(
-            Game {
-                players: self.players.clone(),
-            },
-            1u128,
-        )]);
+    pub fn play2(&mut self) -> usize {
+        let mut cache = HashMap::new();
+        let result = self.play_recursive(&mut cache, 0);
+        println!("RESULT: {:?}", result);
+        *result.iter().max().unwrap()
+    }
 
-        let rolls: Vec<_> = (1..=3)
-            .flat_map(|a| (1..=3).flat_map(move |b| (1..=3).map(move |c| a + b + c)))
+    fn play_recursive(&self, cache: &mut HashMap<Game, [usize; 2]>, index: usize) -> [usize; 2] {
+        if cache.contains_key(&self) {
+            return *cache.get(&self).unwrap();
+        }
+
+        let mut result = [0, 0];
+
+        let rolls: Vec<_> = (1_u32..=3)
+            .flat_map(|a| (1_u32..=3).flat_map(move |b| (1_u32..=3).map(move |c| a + b + c)))
             .collect();
 
-        for index in (0..self.players.len()).cycle() {
-            println!("PLAYER: {}", index);
-            let mut next: HashMap<Game, u128> = HashMap::new();
-            for &roll in rolls.iter() {
-                println!("  Roll: {}", roll);
-                for (game, universes) in games.iter() {
-                    println!("    Game: {:?}, universes: {}", game, universes);
-                    let player = self.players[index].borrow_mut();
-                    player.roll(roll);
+        for roll in rolls.iter() {
+            let mut next_game = self.clone();
 
-                    if player.score >= 21 {
-                        wins[index] += universes;
-                    } else {
-                        *next.entry(game.clone()).or_insert(0) += universes;
-                    }
-                }
-            }
+            let player = next_game.players[index].borrow_mut();
+            player.roll(*roll);
 
-            games = next;
-            if games.is_empty() {
-                break;
+            if player.score >= 21 {
+                result[index] += 1;
+            } else {
+                let r = next_game.play_recursive(cache, 1 - index);
+                result[0] += r[0];
+                result[1] += r[1];
             }
         }
 
-        *wins.iter().max().unwrap()
+        cache.insert(self.clone(), result);
+        result
     }
 }
 
@@ -129,6 +126,7 @@ fn main() {
     let mut game = Game::new(7, 3);
     let score = game.play2();
     dbg!(score);
+    // 137221844288868 too low
 }
 
 #[cfg(test)]
