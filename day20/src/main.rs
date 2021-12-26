@@ -1,8 +1,8 @@
-use std::ops::{Index, Neg, Shl};
+use std::{fmt::Display, ops::Shl};
 
 use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Image {
     pub pixels: Vec<u8>,
     pub width: usize,
@@ -11,7 +11,7 @@ struct Image {
 
 impl Image {
     const PIXELS: [(i32, i32); 9] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
-    
+
     pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Self {
         Self { width, height, pixels }
     }
@@ -33,6 +33,17 @@ impl Image {
     }
 }
 
+impl Display for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for line in self.pixels.chunks(self.width) {
+            let pixels = line.iter().map(|&p| if p == 1 { '#' } else { '.' }).join("");
+            writeln!(f, "{}", pixels)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 struct ImageEnhancer {
     pub lookup: Vec<u8>,
@@ -40,20 +51,27 @@ struct ImageEnhancer {
 }
 
 impl ImageEnhancer {
-    pub fn apply(&self) -> Image {
+    pub fn apply(&self, steps: usize) -> Image {
+        (0..steps).fold(self.image.clone(), |result, _| self.enhance(&result))
+    }
+
+    fn enhance(&self, image: &Image) -> Image {
         let mut pixels = Vec::new();
 
-        for y in -1..self.image.height as i32 + 1 {
-            for x in -1..self.image.width as i32 + 1 {
-                let binary = self.image.index(x, y);
+        for y in -1..image.height as i32 + 1 {
+            for x in -1..image.width as i32 + 1 {
+                let index = image.index(x, y);
+                let pixel = self.lookup.get(index as usize).unwrap();
+                pixels.push(*pixel);
             }
         }
 
         Image {
-            width: self.image.width + 2,
-            height: self.image.height + 2,
+            width: image.width + 2,
+            height: image.height + 2,
             pixels,
         }
+
     }
 }
 
@@ -88,7 +106,9 @@ fn parse_input(input: &str) -> ImageEnhancer {
 }
 
 fn main() {
-    println!("Hello, world!");
+    let enhancer = parse_input(include_str!("input.txt"));
+    let image = enhancer.apply(2);
+    println!("{}", image);
 }
 
 #[cfg(test)]
