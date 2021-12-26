@@ -1,34 +1,37 @@
 use itertools::Itertools;
 
 #[derive(Debug)]
-enum Pixel {
-    Light,
-    Dark,
+struct Image {
+    pub pixels: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
 }
 
-impl From<char> for Pixel {
-    fn from(c: char) -> Self {
-        if c == '#' {
-            Pixel::Light
-        } else {
-            Pixel::Dark
-        }
+impl Image {
+    pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Self {
+        Self { width, height, pixels }
     }
 }
 
 #[derive(Debug)]
 struct ImageEnhancer {
-    pub image: Vec<Pixel>,
-    pub lookup: Vec<Pixel>,
-    pub width: usize,
-    pub height: usize,
+    pub lookup: Vec<u8>,
+    pub image: Image,
 }
 
 fn parse_input(input: &str) -> ImageEnhancer {
+    fn convert(c: char) -> u8 {
+        if c == '#' {
+            1
+        } else {
+            0
+        }
+    }
+
     let (algorithm, image) = input.split_once("\n\n").unwrap();
     let lookup = algorithm
         .chars()
-        .map(Pixel::from)
+        .map(convert)
         .collect_vec();
 
     let lines = image.lines().collect_vec();
@@ -37,14 +40,12 @@ fn parse_input(input: &str) -> ImageEnhancer {
 
     let image = lines
         .iter()
-        .flat_map(|&line| line.chars().map(Pixel::from))
+        .flat_map(|&line| line.chars().map(convert))
         .collect_vec();
 
     ImageEnhancer {
         lookup,
-        image,
-        width,
-        height,
+        image: Image::new(width, height, image),
     }
 }
 
