@@ -31,6 +31,10 @@ impl Image {
 
         result
     }
+
+    pub fn count_lit(&self) -> usize {
+        self.pixels.iter().filter(|&p| *p == 1).count()
+    }
 }
 
 impl Display for Image {
@@ -131,5 +135,12 @@ mod tests {
         assert_eq!(5, enhancer.image.width);
         assert_eq!(5, enhancer.image.height);
         assert_eq!(25, enhancer.image.pixels.len());
+    }
+
+    #[test]
+    fn test_count_lit_pixels() {
+        let enhancer = parse_input(include_str!("example.txt"));
+        let image = enhancer.apply(2);
+        assert_eq!(35, image.count_lit());
     }
 }
