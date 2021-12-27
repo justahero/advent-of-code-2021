@@ -1,12 +1,15 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 struct Image {
-    pub pixels: Vec<u8>,
-    pub width: usize,
-    pub height: usize,
+    pub pixels: HashSet<(i32, i32)>,
+    pub outside: u8,
+    pub min_x: i32,
+    pub max_x: i32,
+    pub min_y: i32,
+    pub max_y: i32,
 }
 
 impl Image {
@@ -22,11 +25,17 @@ impl Image {
         (1, 1),
     ];
 
-    pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Self {
+    pub fn new(pixels: HashSet<(i32, i32)>, outside: u8) -> Self {
+        let (min_x, max_x) = pixels.iter().map(|&(px, _)| px).minmax().into_option().unwrap();
+        let (min_y, max_y) = pixels.iter().map(|&(_, py)| py).minmax().into_option().unwrap();
+
         Self {
-            width,
-            height,
+            min_x,
+            max_x,
+            min_y,
+            max_y,
             pixels,
+            outside,
         }
     }
 
@@ -34,13 +43,9 @@ impl Image {
     #[inline(always)]
     pub fn index(&self, x: i32, y: i32) -> u32 {
         let mut result = 0_u32;
-        // println!("INDEX: {},{}", x, y);
 
         for (index, &(dx, dy)) in Self::PIXELS.iter().enumerate() {
-            let (x, y) = (dx + x, dy + y);
-            let value = self.get(x, y) as u32;
-            // println!("  index: {} - {},{} v: {}, p: {}", index, x, y, value, self.pixels[0]);
-            result |= value << (8 - index);
+            result |= (self.get(x + dx, y + dy) as u32) << (8 - index);
         }
 
         result
@@ -48,23 +53,27 @@ impl Image {
 
     #[inline(always)]
     fn get(&self, x: i32, y: i32) -> u8 {
-        if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
-            self.pixels[(y * self.width as i32 + x) as usize]
+        if self.min_x <= x && x <= self.max_x && self.min_y <= y && y <= self.max_y {
+            self.pixels.contains(&(x, y)) as u8
         } else {
-            0
+            self.outside
         }
     }
 
     pub fn count_lit(&self) -> usize {
-        self.pixels.iter().filter(|&p| *p == 1).count()
+        self.pixels.len()
     }
 }
 
 impl Display for Image {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let c = if self.pixels[(y * self.height + x) as usize] == 1 {
+        let (min_x, max_x) = self.pixels.iter().map(|&(px, _)| px).minmax().into_option().unwrap();
+        let (min_y, max_y) = self.pixels.iter().map(|&(_, py)| py).minmax().into_option().unwrap();
+        let pad = 3;
+
+        for x in (min_x - pad)..=(max_x + pad) {
+            for y in (min_y - pad)..=(max_y + pad) {
+                let c = if self.pixels.get(&(x, y)).is_some() {
                     '#'
                 } else {
                     '.'
@@ -87,28 +96,30 @@ impl ImageEnhancer {
     pub fn apply(&self, steps: usize, image: Image) -> Image {
         let mut image = image;
         for _ in 0..steps {
-            println!("CURRENT:\n{}", image);
             image = self.enhance(&image);
-            println!("ENHANCED:\n{}", image);
         }
         image
     }
 
     fn enhance(&self, image: &Image) -> Image {
-        let mut pixels = Vec::new();
+        let mut pixels = HashSet::new();
+        let (min_x, max_x) = image.pixels.iter().map(|&(px, _)| px).minmax().into_option().unwrap();
+        let (min_y, max_y) = image.pixels.iter().map(|&(_, py)| py).minmax().into_option().unwrap();
+        let pad = 3;
 
-        for y in -1..image.height as i32 + 1 {
-            for x in -1..image.width as i32 + 1 {
-                let index = image.index(x, y) as usize;
-                pixels.push(self.lookup[index]);
+        for x in (min_x - pad)..=(max_x + pad) {
+            for y in (min_y - pad)..=(max_y + pad) {
+                let index = image.index(x, y);
+                if self.lookup[index as usize] == 1 {
+                    pixels.insert((x, y));
+                }
             }
         }
 
-        Image {
-            width: image.width + 2,
-            height: image.height + 2,
-            pixels,
-        }
+        let outside = ((image.outside == 0 && self.lookup[0] == 1)
+            || (image.outside == 1 && self.lookup[511] == 1)) as u8;
+
+        Image::new(pixels, outside)
     }
 }
 
@@ -126,34 +137,41 @@ fn parse_input(input: &str) -> (ImageEnhancer, Image) {
     assert_eq!(512, lookup.len());
 
     let lines = image.lines().collect_vec();
-    let height = lines.len();
-    let width = lines[0].len();
-    println!("IMAGE: {}, {}", width, height);
-
     let pixels = lines
         .iter()
-        .flat_map(|&line| line.chars().map(convert))
-        .collect_vec();
+        .enumerate()
+        .fold(HashSet::new(), |mut result, (y, &line)| {
+            for (x, c) in line.chars().enumerate() {
+                if c == '#' {
+                    result.insert((x as i32, y as i32));
+                }
+            }
+            result
+        });
 
-    (ImageEnhancer { lookup }, Image::new(width, height, pixels))
+    (ImageEnhancer { lookup }, Image::new(pixels, 0))
 }
 
 fn main() {
-    let (enhancer, image) = parse_input(include_str!("input.txt"));
+    let (enhancer, original_image) = parse_input(include_str!("input.txt"));
 
-    let image = enhancer.apply(2, image);
-    dbg!(image.count_lit());
-    // 5278 too high, 4814 too low
+    let pixels = enhancer.apply(2, original_image.clone()).count_lit();
+    dbg!(5081, pixels);
+
+    let pixels = enhancer.apply(50, original_image).count_lit();
+    dbg!(pixels);
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::{parse_input, Image};
 
     #[test]
     fn test_get_image_index() {
-        // TODO increase width / height, test more cases
-        let image = Image::new(2, 2, vec![1, 0, 1, 1]);
+        let pixels = [(0, 0), (0, 1), (1, 1)].into_iter().collect::<HashSet<_>>();
+        let image = Image::new(pixels, 0);
         assert_eq!(0b000000000, image.index(-2, -2));
         assert_eq!(0b000000001, image.index(-1, -1));
         assert_eq!(0b000010011, image.index(0, 0));
@@ -166,9 +184,7 @@ mod tests {
     fn test_parse_input() {
         let (enhancer, image) = parse_input(include_str!("example.txt"));
         assert_eq!(512, enhancer.lookup.len());
-        assert_eq!(5, image.width);
-        assert_eq!(5, image.height);
-        assert_eq!(25, image.pixels.len());
+        assert_eq!(10, image.pixels.len());
     }
 
     #[test]
@@ -183,5 +199,12 @@ mod tests {
         let (enhancer, image) = parse_input(include_str!("example2.txt"));
         let image = enhancer.apply(2, image);
         assert_eq!(5619, image.count_lit());
+    }
+
+    #[test]
+    fn test_deep_enhance_example() {
+        let (enhancer, image) = parse_input(include_str!("example.txt"));
+        let image = enhancer.apply(50, image);
+        assert_eq!(3351, image.count_lit());
     }
 }
