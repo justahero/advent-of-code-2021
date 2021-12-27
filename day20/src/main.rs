@@ -104,14 +104,14 @@ fn parse_input(input: &str) -> ImageEnhancer {
     let width = lines[0].len();
     println!("IMAGE: {}, {}", width, height);
 
-    let image = lines
+    let pixels = lines
         .iter()
         .flat_map(|&line| line.chars().map(convert))
         .collect_vec();
 
     ImageEnhancer {
         lookup,
-        image: Image::new(width, height, image),
+        image: Image::new(width, height, pixels),
     }
 }
 
