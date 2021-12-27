@@ -29,6 +29,7 @@ impl Image {
         result
     }
 
+    #[inline(always)]
     fn get(&self, x: i32, y: i32) -> u8 {
         if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
             self.pixels[(y * self.width as i32 + x) as usize]
@@ -65,18 +66,21 @@ impl ImageEnhancer {
     }
 
     fn enhance(&self, image: &Image) -> Image {
-        let mut pixels = Vec::new();
+        let width = image.width + 2;
+        let height = image.height + 2;
+        
+        let mut pixels = vec![0_u8; width * height];
 
-        for y in -1..image.height as i32 + 1 {
-            for x in -1..image.width as i32 + 1 {
-                let index = image.index(x, y) as usize;
-                pixels.push(self.lookup[index]);
+        for y in 0..height as i32 {
+            for x in 0..width as i32 {
+                let index = image.index(x - 1, y - 1) as usize;
+                pixels[(y * width as i32 + x) as usize] = self.lookup[index];
             }
         }
 
         Image {
-            width: image.width + 2,
-            height: image.height + 2,
+            width,
+            height,
             pixels,
         }
 
