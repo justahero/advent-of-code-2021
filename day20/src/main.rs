@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Shl};
+use std::fmt::Display;
 
 use itertools::Itertools;
 
@@ -10,20 +10,33 @@ struct Image {
 }
 
 impl Image {
-    const PIXELS: [(i32, i32); 9] = [(1, 1), (0, 1), (-1, 1), (1, 0), (0, 0), (-1, 0), (1, -1), (0, -1), (-1, -1)];
+    const PIXELS: [(i32, i32); 9] = [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (0, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+    ];
 
     pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Self {
-        Self { width, height, pixels }
+        Self {
+            width,
+            height,
+            pixels,
+        }
     }
 
     /// Returns the calculated index of the 3x3 pixel matrix around the given coordinates.
+    #[inline(always)]
     pub fn index(&self, x: i32, y: i32) -> u32 {
-        let mut result = 0;
+        let mut result = 0_u32;
 
-        for (index, &(px, py)) in Self::PIXELS.iter().enumerate() {
-            if self.get(x + px, y + py) == 1 {
-                result |= 1_u32.shl(index);
-            }
+        for (index, &(dx, dy)) in Self::PIXELS.iter().rev().enumerate() {
+            result |= (self.get(x + dx, y + dy) as u32) << index;
         }
 
         result
@@ -46,7 +59,10 @@ impl Image {
 impl Display for Image {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for line in self.pixels.chunks(self.width) {
-            let pixels = line.iter().map(|&p| if p == 1 { '#' } else { '.' }).join("");
+            let pixels = line
+                .iter()
+                .map(|&p| if p == 1 { '#' } else { '.' })
+                .join("");
             writeln!(f, "{}", pixels)?;
         }
 
@@ -57,18 +73,22 @@ impl Display for Image {
 #[derive(Debug)]
 struct ImageEnhancer {
     pub lookup: Vec<u8>,
-    pub image: Image,
 }
 
 impl ImageEnhancer {
-    pub fn apply(&self, steps: usize) -> Image {
-        (0..steps).fold(self.image.clone(), |result, _| self.enhance(&result))
+    pub fn apply(&self, steps: usize, image: Image) -> Image {
+        let mut image = image;
+        for _ in 0..steps {
+            println!("CURRENT:\n{}", image);
+            image = self.enhance(&image);
+            println!("ENHANCED:\n{}", image);
+        }
+        image
     }
 
     fn enhance(&self, image: &Image) -> Image {
         let width = image.width + 2;
         let height = image.height + 2;
-        
         let mut pixels = vec![0_u8; width * height];
 
         for y in 0..height as i32 {
@@ -83,11 +103,10 @@ impl ImageEnhancer {
             height,
             pixels,
         }
-
     }
 }
 
-fn parse_input(input: &str) -> ImageEnhancer {
+fn parse_input(input: &str) -> (ImageEnhancer, Image) {
     fn convert(c: char) -> u8 {
         if c == '#' {
             1
@@ -97,10 +116,7 @@ fn parse_input(input: &str) -> ImageEnhancer {
     }
 
     let (algorithm, image) = input.split_once("\n\n").unwrap();
-    let lookup = algorithm
-        .chars()
-        .map(convert)
-        .collect_vec();
+    let lookup = algorithm.chars().map(convert).collect_vec();
     assert_eq!(512, lookup.len());
 
     let lines = image.lines().collect_vec();
@@ -113,23 +129,20 @@ fn parse_input(input: &str) -> ImageEnhancer {
         .flat_map(|&line| line.chars().map(convert))
         .collect_vec();
 
-    ImageEnhancer {
-        lookup,
-        image: Image::new(width, height, pixels),
-    }
+    (ImageEnhancer { lookup }, Image::new(width, height, pixels))
 }
 
 fn main() {
-    let enhancer = parse_input(include_str!("input.txt"));
+    let (enhancer, image) = parse_input(include_str!("input.txt"));
 
-    let image = enhancer.apply(2);
+    let image = enhancer.apply(2, image);
     dbg!(image.count_lit());
     // 5278 too high, 4814 too low
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Image, parse_input};
+    use crate::{parse_input, Image};
 
     #[test]
     fn test_get_image_index() {
@@ -145,17 +158,24 @@ mod tests {
 
     #[test]
     fn test_parse_input() {
-        let enhancer = parse_input(include_str!("example.txt"));
+        let (enhancer, image) = parse_input(include_str!("example.txt"));
         assert_eq!(512, enhancer.lookup.len());
-        assert_eq!(5, enhancer.image.width);
-        assert_eq!(5, enhancer.image.height);
-        assert_eq!(25, enhancer.image.pixels.len());
+        assert_eq!(5, image.width);
+        assert_eq!(5, image.height);
+        assert_eq!(25, image.pixels.len());
     }
 
     #[test]
     fn test_count_lit_pixels() {
-        let enhancer = parse_input(include_str!("example.txt"));
-        let image = enhancer.apply(2);
+        let (enhancer, image) = parse_input(include_str!("example.txt"));
+        let image = enhancer.apply(2, image);
         assert_eq!(35, image.count_lit());
+    }
+
+    #[test]
+    fn test_example_2() {
+        let (enhancer, image) = parse_input(include_str!("example2.txt"));
+        let image = enhancer.apply(2, image);
+        assert_eq!(5619, image.count_lit());
     }
 }
