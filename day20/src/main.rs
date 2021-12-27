@@ -34,9 +34,13 @@ impl Image {
     #[inline(always)]
     pub fn index(&self, x: i32, y: i32) -> u32 {
         let mut result = 0_u32;
+        // println!("INDEX: {},{}", x, y);
 
-        for (index, &(dx, dy)) in Self::PIXELS.iter().rev().enumerate() {
-            result |= (self.get(x + dx, y + dy) as u32) << index;
+        for (index, &(dx, dy)) in Self::PIXELS.iter().enumerate() {
+            let (x, y) = (dx + x, dy + y);
+            let value = self.get(x, y) as u32;
+            // println!("  index: {} - {},{} v: {}, p: {}", index, x, y, value, self.pixels[0]);
+            result |= value << (8 - index);
         }
 
         result
@@ -58,12 +62,16 @@ impl Image {
 
 impl Display for Image {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for line in self.pixels.chunks(self.width) {
-            let pixels = line
-                .iter()
-                .map(|&p| if p == 1 { '#' } else { '.' })
-                .join("");
-            writeln!(f, "{}", pixels)?;
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let c = if self.pixels[(y * self.height + x) as usize] == 1 {
+                    '#'
+                } else {
+                    '.'
+                };
+                write!(f, "{}", c)?;
+            }
+            writeln!(f)?;
         }
 
         Ok(())
@@ -87,20 +95,18 @@ impl ImageEnhancer {
     }
 
     fn enhance(&self, image: &Image) -> Image {
-        let width = image.width + 2;
-        let height = image.height + 2;
-        let mut pixels = vec![0_u8; width * height];
+        let mut pixels = Vec::new();
 
-        for y in 0..height as i32 {
-            for x in 0..width as i32 {
-                let index = image.index(x - 1, y - 1) as usize;
-                pixels[(y * width as i32 + x) as usize] = self.lookup[index];
+        for y in -1..image.height as i32 + 1 {
+            for x in -1..image.width as i32 + 1 {
+                let index = image.index(x, y) as usize;
+                pixels.push(self.lookup[index]);
             }
         }
 
         Image {
-            width,
-            height,
+            width: image.width + 2,
+            height: image.height + 2,
             pixels,
         }
     }
