@@ -10,7 +10,7 @@ struct Image {
 }
 
 impl Image {
-    const PIXELS: [(i32, i32); 9] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
+    const PIXELS: [(i32, i32); 9] = [(1, 1), (0, 1), (-1, 1), (1, 0), (0, 0), (-1, 0), (1, -1), (0, -1), (-1, -1)];
 
     pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Self {
         Self { width, height, pixels }
@@ -21,15 +21,20 @@ impl Image {
         let mut result = 0;
 
         for (index, &(px, py)) in Self::PIXELS.iter().enumerate() {
-            let (px, py) = (px + x, py + y);
-            if 0 <= px && px < self.width as i32 && 0 <= py && py < self.height as i32 {
-                if self.pixels[(py * self.width as i32 + px) as usize] == 1 {
-                    result |= 1_u32.shl(8 - index);
-                }
+            if self.get(x + px, y + py) == 1 {
+                result |= 1_u32.shl(index);
             }
         }
 
         result
+    }
+
+    fn get(&self, x: i32, y: i32) -> u8 {
+        if 0 <= x && x < self.width as i32 && 0 <= y && y < self.height as i32 {
+            self.pixels[(y * self.width as i32 + x) as usize]
+        } else {
+            0
+        }
     }
 
     pub fn count_lit(&self) -> usize {
@@ -64,9 +69,8 @@ impl ImageEnhancer {
 
         for y in -1..image.height as i32 + 1 {
             for x in -1..image.width as i32 + 1 {
-                let index = image.index(x, y);
-                let pixel = self.lookup.get(index as usize).unwrap();
-                pixels.push(*pixel);
+                let index = image.index(x, y) as usize;
+                pixels.push(self.lookup[index]);
             }
         }
 
@@ -93,10 +97,12 @@ fn parse_input(input: &str) -> ImageEnhancer {
         .chars()
         .map(convert)
         .collect_vec();
+    assert_eq!(512, lookup.len());
 
     let lines = image.lines().collect_vec();
     let height = lines.len();
     let width = lines[0].len();
+    println!("IMAGE: {}, {}", width, height);
 
     let image = lines
         .iter()
@@ -111,8 +117,10 @@ fn parse_input(input: &str) -> ImageEnhancer {
 
 fn main() {
     let enhancer = parse_input(include_str!("input.txt"));
+
     let image = enhancer.apply(2);
-    println!("{}", image);
+    dbg!(image.count_lit());
+    // 5278 too high, 4814 too low
 }
 
 #[cfg(test)]
@@ -121,11 +129,14 @@ mod tests {
 
     #[test]
     fn test_get_image_index() {
-        let image = Image::new(2, 2, vec![1, 0, 0, 1]);
+        // TODO increase width / height, test more cases
+        let image = Image::new(2, 2, vec![1, 0, 1, 1]);
         assert_eq!(0b000000000, image.index(-2, -2));
         assert_eq!(0b000000001, image.index(-1, -1));
-        assert_eq!(0b000010001, image.index(0, 0));
-        assert_eq!(0b010001000, image.index(0, 1));
+        assert_eq!(0b000010011, image.index(0, 0));
+        assert_eq!(0b000100110, image.index(1, 0));
+        assert_eq!(0b010011000, image.index(0, 1));
+        assert_eq!(0b100110000, image.index(1, 1));
     }
 
     #[test]
