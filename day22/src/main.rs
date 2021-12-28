@@ -19,14 +19,30 @@ peg::parser! {
                 (std::cmp::min(l, r), std::cmp::max(l, r))
             }
 
-        pub(crate) rule cube() -> Cube
+        pub(crate) rule instruction() -> Instruction
             = state:state() ws() "x=" x:range() comma() "y=" y:range() comma() "z=" z:range() {
-                Cube {
-                    start: Vec3::new(x.0, y.0, z.0),
-                    end: Vec3::new(x.1, y.1, z.1),
+                let cube = Cube {
+                    x: Bounds::new(x.0, x.1),
+                    y: Bounds::new(y.0, y.1),
+                    z: Bounds::new(z.0, z.1),
+                };
+                Instruction {
                     state,
+                    cube,
                 }
             }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Bounds {
+    pub min: i32,
+    pub max: i32,
+}
+
+impl Bounds {
+    pub fn new(min: i32, max: i32) -> Self {
+        Self { min, max }
     }
 }
 
@@ -46,117 +62,163 @@ impl From<&str> for State {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct Vec3 {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-}
-
-impl Vec3 {
-    pub fn new(x: i32, y: i32, z: i32) -> Self {
-        Self { x, y, z }
-    }
-
-    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
-        let x = self.x.max(min.x).min(max.x);
-        let y = self.y.max(min.y).min(max.y);
-        let z = self.z.max(min.z).min(max.z);
-        Self { x, y, z }
-    }
-}
-
-impl From<(i32, i32, i32)> for Vec3 {
-    fn from(v: (i32, i32, i32)) -> Self {
-        Self::new(v.0, v.1, v.2)
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Cube {
-    pub start: Vec3,
-    pub end: Vec3,
-    pub state: State,
+    pub x: Bounds,
+    pub y: Bounds,
+    pub z: Bounds,
 }
 
 impl Cube {
-    pub fn new(start: Vec3, end: Vec3, state: State) -> Self {
-        Self { start, end, state }
+    pub fn new(x: Bounds, y: Bounds, z: Bounds) -> Self {
+        Self { x, y, z }
     }
 
-    pub fn dim(dim: i32, state: State) -> Self {
+    pub fn dim(dim: i32) -> Self {
         Self {
-            start: Vec3::new(-dim, -dim, -dim),
-            end: Vec3::new(dim, dim, dim),
-            state,
+            x: Bounds::new(-dim, dim),
+            y: Bounds::new(-dim, dim),
+            z: Bounds::new(-dim, dim),
         }
     }
 
-    fn subtract(&self, rhs: &Cube) -> Vec<Cube> {
-        if self.overlaps(rhs) {
-            vec![self.to_owned()]
+    /// Returns true if this cube overlaps with the other
+    pub fn overlaps(&self, rhs: &Cube) -> bool {
+        (self.x.min <= rhs.x.max && self.x.max >= rhs.x.min)
+            && (self.y.min <= rhs.y.max && self.y.max >= rhs.y.min)
+            && (self.z.min <= rhs.z.max && self.z.max >= rhs.z.min)
+    }
+
+    pub fn intersection(&mut self, rhs: &Cube) -> Vec<Cube> {
+        let mut cubes = Vec::new();
+        if !self.overlaps(rhs) {
+            cubes.push(self.to_owned());
         } else {
-            Vec::new()
+            if self.x.min < rhs.x.min {
+                let cube = Cube::new(
+                    Bounds::new(self.x.min, rhs.x.min - 1),
+                    Bounds::new(self.y.min, self.y.max),
+                    Bounds::new(self.z.min, self.z.max),
+                );
+                cubes.push(cube);
+                self.x.min = rhs.x.min;
+            }
+            if self.x.max > rhs.x.max {
+                let cube = Cube::new(
+                    Bounds::new(rhs.x.max + 1, self.x.max),
+                    Bounds::new(self.y.min, self.y.max),
+                    Bounds::new(self.z.min, self.z.max),
+                );
+                cubes.push(cube);
+                self.x.max = rhs.x.max;
+            }
+            if self.y.min < rhs.y.min {
+                let cube = Cube::new(
+                    Bounds::new(self.x.min, self.x.max),
+                    Bounds::new(self.y.min, rhs.y.min - 1),
+                    Bounds::new(self.z.min, self.z.max),
+                );
+                cubes.push(cube);
+                self.y.min = rhs.y.min;
+            }
+            if self.y.max > rhs.y.max {
+                let cube = Cube::new(
+                    Bounds::new(self.x.min, self.x.max),
+                    Bounds::new(rhs.y.max + 1, self.y.max),
+                    Bounds::new(self.z.min, self.z.max),
+                );
+                cubes.push(cube);
+                self.y.max = rhs.y.max;
+            }
+            if self.z.min < rhs.z.min {
+                let cube = Cube::new(
+                    Bounds::new(self.x.min, self.x.max),
+                    Bounds::new(self.y.min, self.y.max),
+                    Bounds::new(self.z.min, rhs.z.min - 1),
+                );
+                cubes.push(cube);
+                self.z.min = rhs.z.min;
+            }
+            if self.z.max > rhs.z.max {
+                let cube = Cube::new(
+                    Bounds::new(self.x.min, self.x.max),
+                    Bounds::new(self.y.min, self.y.max),
+                    Bounds::new(rhs.z.max + 1, self.z.max),
+                );
+                cubes.push(cube);
+                self.z.max = rhs.z.max;
+            }
         }
+        cubes
     }
 
-    fn overlaps(&self, rhs: &Cube) -> bool {
-        !(rhs.start.x > self.end.x
-            || rhs.end.x < self.start.x
-            || rhs.start.y > self.end.y
-            || rhs.end.y < self.start.y
-            || rhs.start.z > self.end.z
-            || rhs.end.z < self.start.z)
-    }
-
+    #[inline(always)]
     pub fn volume(&self) -> usize {
-        let x = (self.end.x - self.start.x).abs();
-        let y = (self.end.y - self.start.y).abs();
-        let z = (self.end.z - self.start.z).abs();
+        let x = 0.max(self.x.max - self.x.min) as i64 + 1;
+        let y = 0.max(self.y.max - self.y.min) as i64 + 1;
+        let z = 0.max(self.z.max - self.z.min) as i64 + 1;
         (x * y * z) as usize
     }
 }
 
-impl TryFrom<&str> for Cube {
+#[derive(Debug)]
+struct Instruction {
+    pub state: State,
+    pub cube: Cube,
+}
+
+impl TryFrom<&str> for Instruction {
     type Error = anyhow::Error;
 
     fn try_from(line: &str) -> Result<Self, Self::Error> {
-        line_parser::cube(line).map_err(|e| anyhow!("Failed to parse line '{}'", e))
+        line_parser::instruction(line).map_err(|e| anyhow!("Failed to parse line '{}'", e))
     }
 }
 
 #[derive(Debug)]
 struct Reactor {
-    pub instructions: Vec<Cube>,
+    pub instructions: Vec<Instruction>,
 }
 
 impl Reactor {
-    pub fn new(instructions: Vec<Cube>) -> Self {
+    pub fn new(instructions: Vec<Instruction>) -> Self {
         Self { instructions }
-    }
-
-    pub fn find_active_cubes(&self) -> Vec<Cube> {
-        let mut active_cubes = Vec::new();
-
-        for instruction in self.instructions.iter() {}
-
-        active_cubes
     }
 
     /// Reboots the reactor inside the given cuboid dimension
     pub fn reboot(&self, dim: i32) -> usize {
         println!("REBOOT: {}", dim);
+        let dim = Cube::dim(dim);
 
-        let cuboid = Cube::dim(dim, State::Off);
-        self.find_active_cubes()
+        let mut result: Vec<Cube> = Vec::new();
+        for Instruction { cube, state } in self.instructions.iter() {
+            println!("  > instruction - cube: {:?}, state: {:?}, cubes: {:?}", cube, state, result.len());
+
+            let mut cubes = Vec::new();
+
+            for index in 0..result.len() {
+                cubes.extend(result[index].intersection(&cube));
+            }
+
+            if *state == State::On {
+                cubes.push(cube.clone());
+            }
+
+            result = cubes;
+        }
+
+        result
             .iter()
-            .map(|cube| {
-                let start = cube.start.clamp(&cuboid.end, &cuboid.start);
-                let end = cube.end.clamp(&cuboid.end, &cuboid.start);
-                Cube::new(start, end, cube.state)
+            .filter(|&c| {
+                c.x.min >= dim.x.min
+                    && c.x.max <= dim.x.max
+                    && c.y.min >= dim.y.min
+                    && c.y.max <= dim.y.max
+                    && c.z.min >= dim.z.min
+                    && c.z.max <= dim.z.max
             })
-            .map(|cube| cube.volume())
-            .sum()
+            .map(|c| c.volume())
+            .sum::<usize>()
     }
 }
 
@@ -165,7 +227,7 @@ fn parse_input(input: &str) -> anyhow::Result<Reactor> {
         .lines()
         .map(str::trim)
         .filter(|&line| !line.is_empty())
-        .map(Cube::try_from)
+        .map(Instruction::try_from)
         .collect::<anyhow::Result<Vec<_>>>()?;
     Ok(Reactor::new(instructions))
 }
@@ -181,7 +243,9 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Cube, State, Vec3};
+    use std::borrow::Borrow;
+
+    use crate::{parse_input, Bounds, Cube, Instruction, State};
 
     const INPUT: &str = r#"
         on x=-20..26,y=-36..17,z=-47..7
@@ -209,11 +273,34 @@ mod tests {
     "#;
 
     #[test]
+    fn test_cubes_overlap() {
+        let lhs = Cube::new(Bounds::new(0, 4), Bounds::new(0, 4), Bounds::new(1, 4));
+        let rhs = Cube::new(Bounds::new(0, 3), Bounds::new(2, 3), Bounds::new(1, 4));
+        assert!(lhs.overlaps(&rhs));
+    }
+
+    #[test]
+    fn test_cube_does_not_overlap() {
+        let lhs = Cube::new(Bounds::new(1, 3), Bounds::new(1, 3), Bounds::new(1, 2));
+        let rhs = Cube::new(Bounds::new(4, 6), Bounds::new(4, 6), Bounds::new(1, 3));
+        assert!(!lhs.overlaps(&rhs));
+    }
+
+    #[test]
+    fn test_cube_volume() {
+        let cube = Cube::new(Bounds::new(0, 4), Bounds::new(1, 5), Bounds::new(0, 4));
+        assert_eq!(64, cube.volume());
+    }
+
+    #[test]
     fn test_parse_cube_line() -> anyhow::Result<()> {
-        let cube = Cube::try_from("on x=-20..26,y=-36..17,z=-47..7")?;
-        assert_eq!(Vec3::new(-20, -36, -47), cube.start);
-        assert_eq!(Vec3::new(26, 17, 7), cube.end);
-        assert_eq!(State::On, cube.state);
+        let instruction = Instruction::try_from("on x=-20..26,y=-36..17,z=-47..7")?;
+        let cube = instruction.cube.borrow();
+
+        assert_eq!((-20, 26), (cube.x.min, cube.x.max));
+        assert_eq!((-36, 17), (cube.y.min, cube.y.max));
+        assert_eq!((-47, 7), (cube.z.min, cube.z.max));
+        assert_eq!(State::On, instruction.state);
         Ok(())
     }
 
@@ -223,9 +310,9 @@ mod tests {
         assert_eq!(590784, reactor.reboot(50));
     }
 
-    #[test]
-    fn test_part2_example() {
-        let reactor = parse_input(INPUT).expect("Failed to parse input.");
-        assert_eq!(590784, reactor.reboot(100_000));
-    }
+//    #[test]
+//    fn test_part2_example() {
+//        let reactor = parse_input(INPUT).expect("Failed to parse input.");
+//        assert_eq!(590784, reactor.reboot(100_000));
+//    }
 }
