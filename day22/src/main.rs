@@ -25,13 +25,12 @@ peg::parser! {
                     start: Vec3::new(x.0, y.0, z.0),
                     end: Vec3::new(x.1, y.1, z.1),
                     state,
-                    children: Vec::new(),
                 }
             }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
     On,
     Off,
@@ -47,7 +46,7 @@ impl From<&str> for State {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Vec3 {
     pub x: i32,
     pub y: i32,
@@ -58,32 +57,63 @@ impl Vec3 {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self { x, y, z }
     }
+
+    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+        let x = self.x.max(min.x).min(max.x);
+        let y = self.y.max(min.y).min(max.y);
+        let z = self.z.max(min.z).min(max.z);
+        Self { x, y, z }
+    }
 }
 
-#[derive(Debug)]
+impl From<(i32, i32, i32)> for Vec3 {
+    fn from(v: (i32, i32, i32)) -> Self {
+        Self::new(v.0, v.1, v.2)
+    }
+}
+
+#[derive(Debug, Clone)]
 struct Cube {
     pub start: Vec3,
     pub end: Vec3,
     pub state: State,
-    pub children: Vec<Cube>,
 }
 
 impl Cube {
+    pub fn new(start: Vec3, end: Vec3, state: State) -> Self {
+        Self { start, end, state }
+    }
+
     pub fn dim(dim: i32, state: State) -> Self {
         Self {
             start: Vec3::new(-dim, -dim, -dim),
             end: Vec3::new(dim, dim, dim),
             state,
-            children: Vec::new(),
         }
     }
 
-    pub fn switch(&mut self, cuboid: &Cube) {
-        // TODO
+    fn subtract(&self, rhs: &Cube) -> Vec<Cube> {
+        if self.overlaps(rhs) {
+            vec![self.to_owned()]
+        } else {
+            Vec::new()
+        }
     }
 
-    pub fn count(&self, state: State) -> usize {
-        0
+    fn overlaps(&self, rhs: &Cube) -> bool {
+        !(rhs.start.x > self.end.x
+            || rhs.end.x < self.start.x
+            || rhs.start.y > self.end.y
+            || rhs.end.y < self.start.y
+            || rhs.start.z > self.end.z
+            || rhs.end.z < self.start.z)
+    }
+
+    pub fn volume(&self) -> usize {
+        let x = (self.end.x - self.start.x).abs();
+        let y = (self.end.y - self.start.y).abs();
+        let z = (self.end.z - self.start.z).abs();
+        (x * y * z) as usize
     }
 }
 
@@ -105,13 +135,28 @@ impl Reactor {
         Self { instructions }
     }
 
+    pub fn find_active_cubes(&self) -> Vec<Cube> {
+        let mut active_cubes = Vec::new();
+
+        for instruction in self.instructions.iter() {}
+
+        active_cubes
+    }
+
     /// Reboots the reactor inside the given cuboid dimension
     pub fn reboot(&self, dim: i32) -> usize {
-        let mut cuboid = Cube::dim(dim, State::Off);
-        for instruction in self.instructions.iter() {
-            cuboid.switch(instruction);
-        }
-        cuboid.count(State::On)
+        println!("REBOOT: {}", dim);
+
+        let cuboid = Cube::dim(dim, State::Off);
+        self.find_active_cubes()
+            .iter()
+            .map(|cube| {
+                let start = cube.start.clamp(&cuboid.end, &cuboid.start);
+                let end = cube.end.clamp(&cuboid.end, &cuboid.start);
+                Cube::new(start, end, cube.state)
+            })
+            .map(|cube| cube.volume())
+            .sum()
     }
 }
 
@@ -136,7 +181,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cube, State, Vec3, parse_input};
+    use crate::{parse_input, Cube, State, Vec3};
 
     const INPUT: &str = r#"
         on x=-20..26,y=-36..17,z=-47..7
