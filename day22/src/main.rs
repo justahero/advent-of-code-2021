@@ -22,19 +22,16 @@ peg::parser! {
         pub(crate) rule cube() -> Cube
             = state:state() ws() "x=" x:range() comma() "y=" y:range() comma() "z=" z:range() {
                 Cube {
-                    min_x: x.0,
-                    max_x: x.1,
-                    min_y: y.0,
-                    max_y: y.1,
-                    min_z: z.0,
-                    max_z: z.1,
+                    start: Vec3::new(x.0, y.0, z.0),
+                    end: Vec3::new(x.1, y.1, z.1),
                     state,
+                    children: Vec::new(),
                 }
             }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum State {
     On,
     Off,
@@ -45,20 +42,49 @@ impl From<&str> for State {
         match val {
             "on" => State::On,
             "off" => State::Off,
-            _ => unimplemented!(),
+            _ => unreachable!(),
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Vec3 {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+impl Vec3 {
+    pub fn new(x: i32, y: i32, z: i32) -> Self {
+        Self { x, y, z }
     }
 }
 
 #[derive(Debug)]
 struct Cube {
-    pub min_x: i32,
-    pub max_x: i32,
-    pub min_y: i32,
-    pub max_y: i32,
-    pub min_z: i32,
-    pub max_z: i32,
+    pub start: Vec3,
+    pub end: Vec3,
     pub state: State,
+    pub children: Vec<Cube>,
+}
+
+impl Cube {
+    pub fn dim(dim: i32, state: State) -> Self {
+        Self {
+            start: Vec3::new(-dim, -dim, -dim),
+            end: Vec3::new(dim, dim, dim),
+            state,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn switch(&mut self, cuboid: &Cube) {
+        // TODO
+    }
+
+    pub fn count(&self, state: State) -> usize {
+        0
+    }
 }
 
 impl TryFrom<&str> for Cube {
@@ -71,39 +97,46 @@ impl TryFrom<&str> for Cube {
 
 #[derive(Debug)]
 struct Reactor {
-    pub cubes: Vec<Cube>,
+    pub instructions: Vec<Cube>,
 }
 
 impl Reactor {
-    pub fn new(cubes: Vec<Cube>) -> Self {
-        Self { cubes }
+    pub fn new(instructions: Vec<Cube>) -> Self {
+        Self { instructions }
     }
 
-    pub fn count(&self) -> usize {
-        0
+    /// Reboots the reactor inside the given cuboid dimension
+    pub fn reboot(&self, dim: i32) -> usize {
+        let mut cuboid = Cube::dim(dim, State::Off);
+        for instruction in self.instructions.iter() {
+            cuboid.switch(instruction);
+        }
+        cuboid.count(State::On)
     }
 }
 
 fn parse_input(input: &str) -> anyhow::Result<Reactor> {
-    let cubes = input
+    let instructions = input
         .lines()
         .map(str::trim)
         .filter(|&line| !line.is_empty())
         .map(Cube::try_from)
         .collect::<anyhow::Result<Vec<_>>>()?;
-    Ok(Reactor::new(cubes))
+    Ok(Reactor::new(instructions))
 }
 
 fn main() -> anyhow::Result<()> {
     let reactor = parse_input(include_str!("input.txt"))?;
-    dbg!(reactor.count());
+
+    dbg!(reactor.reboot(50));
+    // dbg!(reactor.reboot(100_000));
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cube, State, parse_input};
+    use crate::{Cube, State, Vec3, parse_input};
 
     const INPUT: &str = r#"
         on x=-20..26,y=-36..17,z=-47..7
@@ -133,19 +166,21 @@ mod tests {
     #[test]
     fn test_parse_cube_line() -> anyhow::Result<()> {
         let cube = Cube::try_from("on x=-20..26,y=-36..17,z=-47..7")?;
-        assert_eq!(-20, cube.min_x);
-        assert_eq!(26, cube.max_x);
-        assert_eq!(-36, cube.min_y);
-        assert_eq!(17, cube.max_y);
-        assert_eq!(-47, cube.min_z);
-        assert_eq!(7, cube.max_z);
+        assert_eq!(Vec3::new(-20, -36, -47), cube.start);
+        assert_eq!(Vec3::new(26, 17, 7), cube.end);
         assert_eq!(State::On, cube.state);
         Ok(())
     }
 
     #[test]
-    fn test_initialisation() {
+    fn test_part1_example() {
         let reactor = parse_input(INPUT).expect("Failed to parse input.");
-        assert_eq!(590784, reactor.count());
+        assert_eq!(590784, reactor.reboot(50));
+    }
+
+    #[test]
+    fn test_part2_example() {
+        let reactor = parse_input(INPUT).expect("Failed to parse input.");
+        assert_eq!(590784, reactor.reboot(100_000));
     }
 }
