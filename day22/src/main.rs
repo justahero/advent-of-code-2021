@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 
 peg::parser! {
     grammar line_parser() for str {
@@ -149,7 +150,7 @@ impl Cube {
                 self.z.max = rhs.z.max;
             }
         }
-        cubes
+        cubes.into_iter().filter(|c| c.volume() > 0).collect_vec()
     }
 
     #[inline(always)]
@@ -185,15 +186,32 @@ impl Reactor {
         Self { instructions }
     }
 
-    /// Reboots the reactor inside the given cuboid dimension
-    pub fn reboot(&self, dim: i32) -> usize {
-        println!("REBOOT: {}", dim);
+    pub fn part1(&self, dim: i32) -> usize {
         let dim = Cube::dim(dim);
+        self.reboot()
+            .iter()
+            .filter(|&c| {
+                c.x.min >= dim.x.min
+                    && c.x.max <= dim.x.max
+                    && c.y.min >= dim.y.min
+                    && c.y.max <= dim.y.max
+                    && c.z.min >= dim.z.min
+                    && c.z.max <= dim.z.max
+            })
+            .map(|c| c.volume())
+            .sum::<usize>()
+    }
 
+    pub fn part2(&self) -> usize {
+        self.reboot()
+            .into_iter()
+            .map(|c| c.volume())
+            .sum::<usize>()
+    }
+
+    pub fn reboot(&self) -> Vec<Cube> {
         let mut result: Vec<Cube> = Vec::new();
         for Instruction { cube, state } in self.instructions.iter() {
-            println!("  > instruction - cube: {:?}, state: {:?}, cubes: {:?}", cube, state, result.len());
-
             let mut cubes = Vec::new();
 
             for index in 0..result.len() {
@@ -208,17 +226,6 @@ impl Reactor {
         }
 
         result
-            .iter()
-            .filter(|&c| {
-                c.x.min >= dim.x.min
-                    && c.x.max <= dim.x.max
-                    && c.y.min >= dim.y.min
-                    && c.y.max <= dim.y.max
-                    && c.z.min >= dim.z.min
-                    && c.z.max <= dim.z.max
-            })
-            .map(|c| c.volume())
-            .sum::<usize>()
     }
 }
 
@@ -235,8 +242,8 @@ fn parse_input(input: &str) -> anyhow::Result<Reactor> {
 fn main() -> anyhow::Result<()> {
     let reactor = parse_input(include_str!("input.txt"))?;
 
-    dbg!(reactor.reboot(50));
-    // dbg!(reactor.reboot(100_000));
+    dbg!(reactor.part1(50));
+    dbg!(reactor.part2());
 
     Ok(())
 }
@@ -289,7 +296,7 @@ mod tests {
     #[test]
     fn test_cube_volume() {
         let cube = Cube::new(Bounds::new(0, 4), Bounds::new(1, 5), Bounds::new(0, 4));
-        assert_eq!(64, cube.volume());
+        assert_eq!(125, cube.volume());
     }
 
     #[test]
@@ -307,12 +314,12 @@ mod tests {
     #[test]
     fn test_part1_example() {
         let reactor = parse_input(INPUT).expect("Failed to parse input.");
-        assert_eq!(590784, reactor.reboot(50));
+        assert_eq!(590784, reactor.part1(50));
     }
 
-//    #[test]
-//    fn test_part2_example() {
-//        let reactor = parse_input(INPUT).expect("Failed to parse input.");
-//        assert_eq!(590784, reactor.reboot(100_000));
-//    }
+    #[test]
+    fn test_part2_example() {
+        let reactor = parse_input(include_str!("example.txt")).expect("Failed to parse input.");
+        assert_eq!(2758514936282235, reactor.part2());
+    }
 }
