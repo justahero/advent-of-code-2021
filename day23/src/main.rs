@@ -1,33 +1,45 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{cmp::Ordering, collections::{BinaryHeap, HashMap, HashSet}, fmt::Display};
 
-#[derive(Debug, Clone, PartialEq)]
-struct Amphipod {
-    pub name: String,
-    pub energy: u32,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Amphipod {
+    Amber,
+    Bronze,
+    Copper,
+    Desert,
 }
 
 impl From<char> for Amphipod {
     fn from(c: char) -> Self {
         match c {
-            'A' => Self { name: c.to_string(), energy: 1 },
-            'B' => Self { name: c.to_string(), energy: 10 },
-            'C' => Self { name: c.to_string(), energy: 100 },
-            'D' => Self { name: c.to_string(), energy: 1000 },
+            'A' => Amphipod::Amber,
+            'B' => Amphipod::Bronze,
+            'C' => Amphipod::Copper,
+            'D' => Amphipod::Desert,
             _ => unreachable!(),
         }
     }
 }
 
-impl Display for Amphipod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+impl Amphipod {
+    pub fn energy(&self) -> i32 {
+        match self {
+            Amphipod::Amber => 1,
+            Amphipod::Bronze => 10,
+            Amphipod::Copper => 100,
+            Amphipod::Desert => 1000,
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum State {
+enum FieldState {
+    /// The corridor
     Corridor,
-    Room,
+    /// Entrance right in front of the room
+    Entrance,
+    /// The room with designated amphipod
+    Room(Amphipod),
+    /// A wall
     Wall,
 }
 
@@ -35,11 +47,11 @@ enum State {
 struct Field {
     pub x: i32,
     pub y: i32,
-    pub state: State,
+    pub state: FieldState,
 }
 
 impl Field {
-    pub fn new(x: i32, y: i32, state: State) -> Self {
+    pub fn new(x: i32, y: i32, state: FieldState) -> Self {
         Self { x, y, state }
     }
 }
@@ -47,11 +59,30 @@ impl Field {
 impl Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let x = match &self.state {
-            State::Corridor => ".".to_string(),
-            State::Room => "_".to_string(),
-            State::Wall => "#".to_string(),
+            FieldState::Corridor => ".".to_string(),
+            FieldState::Entrance => "+".to_string(),
+            FieldState::Room(_) => "_".to_string(),
+            FieldState::Wall => "#".to_string(),
         };
         write!(f, "{}", x)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct State {
+    pub amphipods: HashMap<Field, Amphipod>,
+    pub cost: usize,
+}
+
+impl Ord for State {
+    fn cmp(&self, rhs: &Self) -> Ordering {
+        rhs.cost.cmp(&self.cost)
+    }
+}
+
+impl PartialOrd for State {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        Some(self.cmp(rhs))
     }
 }
 
@@ -68,11 +99,18 @@ impl Grid {
         let width = fields.iter().map(|f| f.x).max().unwrap() as u32 + 1;
         let height = fields.iter().map(|f| f.y).max().unwrap() as u32 + 1;
 
-        Self { fields, amphipods, width, height }
+        Self {
+            fields,
+            amphipods,
+            width,
+            height,
+        }
     }
 
     /// Moves all amphiods into their rooms, calculates minimum possible total entry
     pub fn organize(&self) -> usize {
+        let mut queue: BinaryHeap<State> = BinaryHeap::new();
+
         // let visited = self.amphipods().filter(|f|)
         0
     }
@@ -108,6 +146,18 @@ impl Display for Grid {
 
 /// Parses the input
 fn parse_input(input: &str) -> Grid {
+    let entrances = [(3, 1), (5, 1), (7, 1), (9, 1)]
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let designated_rooms = [
+        (3, Amphipod::Amber),
+        (5, Amphipod::Bronze),
+        (7, Amphipod::Copper),
+        (9, Amphipod::Desert),
+    ]
+    .into_iter()
+    .collect::<HashMap<_, _>>();
+
     let mut fields = Vec::new();
     let mut amphipods = HashMap::new();
 
@@ -115,10 +165,17 @@ fn parse_input(input: &str) -> Grid {
         for (x, c) in line.chars().enumerate() {
             let (x, y) = (x as i32, y as i32);
             match c {
-                '#' | ' ' => fields.push(Field::new(x, y, State::Wall)),
-                '.' => fields.push(Field::new(x, y, State::Corridor)),
+                '#' | ' ' => fields.push(Field::new(x, y, FieldState::Wall)),
+                '.' => {
+                    if entrances.contains(&(x, y)) {
+                        fields.push(Field::new(x, y, FieldState::Entrance));
+                    } else {
+                        fields.push(Field::new(x, y, FieldState::Corridor));
+                    }
+                }
                 'A' | 'B' | 'C' | 'D' => {
-                    let field = Field::new(x, y, State::Room);
+                    let designated = &designated_rooms[&(x as usize)];
+                    let field = Field::new(x, y, FieldState::Room(designated.clone()));
                     fields.push(field.clone());
                     amphipods.insert(field, Amphipod::from(c));
                 }
