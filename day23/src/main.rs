@@ -1,6 +1,4 @@
-use itertools::Itertools;
-
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq)]
 struct Amphipod {
@@ -26,14 +24,14 @@ impl Display for Amphipod {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum State {
     Corridor,
     Room,
     Wall,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Field {
     pub x: i32,
     pub y: i32,
@@ -60,13 +58,13 @@ impl Display for Field {
 #[derive(Debug)]
 struct Grid {
     pub fields: Vec<Field>,
-    pub amphipods: Vec<(Field, Amphipod)>,
+    pub amphipods: HashMap<Field, Amphipod>,
     pub width: u32,
     pub height: u32,
 }
 
 impl Grid {
-    pub fn new(fields: Vec<Field>, amphipods: Vec<(Field, Amphipod)>) -> Self {
+    pub fn new(fields: Vec<Field>, amphipods: HashMap<Field, Amphipod>) -> Self {
         let width = fields.iter().map(|f| f.x).max().unwrap() as u32 + 1;
         let height = fields.iter().map(|f| f.y).max().unwrap() as u32 + 1;
 
@@ -111,7 +109,7 @@ impl Display for Grid {
 /// Parses the input
 fn parse_input(input: &str) -> Grid {
     let mut fields = Vec::new();
-    let mut amphipods = Vec::new();
+    let mut amphipods = HashMap::new();
 
     for (y, line) in input.lines().enumerate() {
         for (x, c) in line.chars().enumerate() {
@@ -122,7 +120,7 @@ fn parse_input(input: &str) -> Grid {
                 'A' | 'B' | 'C' | 'D' => {
                     let field = Field::new(x, y, State::Room);
                     fields.push(field.clone());
-                    amphipods.push((field, Amphipod::from(c)))
+                    amphipods.insert(field, Amphipod::from(c));
                 }
                 _ => unreachable!(),
             }
@@ -133,7 +131,8 @@ fn parse_input(input: &str) -> Grid {
 }
 
 fn main() {
-    println!("Hello, world!");
+    let grid = parse_input(include_str!("input.txt"));
+    dbg!(grid.organize());
 }
 
 #[cfg(test)]
