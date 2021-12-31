@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::{BinaryHeap, HashMap, HashSet}, fmt::Display};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Amphipod {
     Amber,
     Bronze,
@@ -68,10 +68,24 @@ impl Display for Field {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// Keeps information on all amphipods and their cost
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct State {
-    pub amphipods: HashMap<Field, Amphipod>,
+    pub amphipods: Vec<(Field, Amphipod)>,
     pub cost: usize,
+}
+
+impl State {
+    pub fn new(amphipods: Vec<(Field, Amphipod)>) -> Self {
+        Self { amphipods, cost: 0 }
+    }
+
+    /// Returns true if all amphipods are in their designated rooms
+    pub fn is_finished(&self) -> bool {
+        self.amphipods.iter().all(|(field, amphipod)| {
+            field.state == FieldState::Room(*amphipod)
+        })
+    }
 }
 
 impl Ord for State {
@@ -89,19 +103,19 @@ impl PartialOrd for State {
 #[derive(Debug)]
 struct Grid {
     pub fields: Vec<Field>,
-    pub amphipods: HashMap<Field, Amphipod>,
+    pub state: State,
     pub width: u32,
     pub height: u32,
 }
 
 impl Grid {
-    pub fn new(fields: Vec<Field>, amphipods: HashMap<Field, Amphipod>) -> Self {
+    pub fn new(fields: Vec<Field>, amphipods: Vec<(Field, Amphipod)>) -> Self {
         let width = fields.iter().map(|f| f.x).max().unwrap() as u32 + 1;
         let height = fields.iter().map(|f| f.y).max().unwrap() as u32 + 1;
 
         Self {
             fields,
-            amphipods,
+            state: State::new(amphipods),
             width,
             height,
         }
@@ -110,6 +124,16 @@ impl Grid {
     /// Moves all amphiods into their rooms, calculates minimum possible total entry
     pub fn organize(&self) -> usize {
         let mut queue: BinaryHeap<State> = BinaryHeap::new();
+        queue.push(self.state.clone());
+
+        let mut costs: HashMap<State, usize> = HashMap::new();
+        costs.insert(self.state.clone(), 0);
+
+        while let Some(state) = queue.pop() {
+            if state.is_finished() {
+                return state.cost;
+            }
+        }
 
         // let visited = self.amphipods().filter(|f|)
         0
@@ -159,7 +183,7 @@ fn parse_input(input: &str) -> Grid {
     .collect::<HashMap<_, _>>();
 
     let mut fields = Vec::new();
-    let mut amphipods = HashMap::new();
+    let mut amphipods = Vec::new();
 
     for (y, line) in input.lines().enumerate() {
         for (x, c) in line.chars().enumerate() {
@@ -177,7 +201,7 @@ fn parse_input(input: &str) -> Grid {
                     let designated = &designated_rooms[&(x as usize)];
                     let field = Field::new(x, y, FieldState::Room(designated.clone()));
                     fields.push(field.clone());
-                    amphipods.insert(field, Amphipod::from(c));
+                    amphipods.push((field, Amphipod::from(c)));
                 }
                 _ => unreachable!(),
             }
@@ -194,7 +218,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_input;
+    use crate::{Amphipod, Field, FieldState, State, parse_input};
 
     const INPUT: &str = r#"#############
 #...........#
@@ -205,13 +229,33 @@ mod tests {
     #[test]
     fn test_parse_input() {
         let grid = parse_input(INPUT);
-        assert_eq!(8, grid.amphipods.len());
+        assert_eq!(8, grid.state.amphipods.len());
+    }
+
+    #[test]
+    fn test_state_is_finished() {
+        let amphipod = Amphipod::Amber;
+        let state = State::new(vec![(Field::new(1, 1, FieldState::Room(amphipod)), amphipod)]);
+        assert!(state.is_finished());
+    }
+
+    #[test]
+    fn test_state_is_not_finished() {
+        let fields = vec![
+            Field::new(2, 2, FieldState::Corridor),
+            Field::new(1, 2, FieldState::Room(Amphipod::Bronze)),
+        ];
+        let amphipods = vec![
+            (fields[0].clone(), Amphipod::Desert),
+            (fields[1].clone(), Amphipod::Amber),
+        ];
+        let state = State::new(amphipods);
+        assert!(!state.is_finished());
     }
 
     #[test]
     fn test_organize_amphipods() {
         let grid = parse_input(INPUT);
-        println!("GRID:\n{}", grid);
         assert_eq!(12521, grid.organize());
     }
 }
