@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, collections::{BinaryHeap, HashMap, HashSet}, fmt::Display};
 
+use itertools::Itertools;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Amphipod {
     Amber,
@@ -54,6 +56,28 @@ impl Field {
     pub fn new(x: i32, y: i32, state: FieldState) -> Self {
         Self { x, y, state }
     }
+
+    pub fn is_corridor(&self) -> bool {
+        self.state == FieldState::Corridor
+    }
+
+    pub fn is_room(&self) -> bool {
+        match self.state {
+            FieldState::Room(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_home(&self, amphipod: &Amphipod) -> bool {
+        match self.state {
+            FieldState::Room(ref a) => a == amphipod,
+            _ => false,
+        }
+    }
+
+    pub fn distance(&self, dest: &Field) -> i32 {
+        (dest.x - self.x).abs() + (dest.y - self.y).abs()
+    }
 }
 
 impl Display for Field {
@@ -85,6 +109,10 @@ impl State {
         self.amphipods.iter().all(|(field, amphipod)| {
             field.state == FieldState::Room(*amphipod)
         })
+    }
+
+    pub fn is_homeroom(&self) -> bool {
+        false
     }
 }
 
@@ -121,8 +149,26 @@ impl Grid {
         }
     }
 
+    /// Get the next moves for all amphipods
+    /// Returns index of amphipod and their next field.
+    fn get_next_moves(&self, state: &State) -> Vec<(usize, &Field)> {
+        let mut result = Vec::new();
+
+        for (index, (field, amphipod)) in state.amphipods.iter().enumerate() {
+            if field.is_corridor() {
+                // TODO?
+
+                for dst in self.home_positions(*amphipod) {
+
+                }
+            }
+        }
+
+        result
+    }
+
     /// Moves all amphiods into their rooms, calculates minimum possible total entry
-    pub fn organize(&self) -> usize {
+    pub fn organize(&self) -> Option<usize> {
         let mut queue: BinaryHeap<State> = BinaryHeap::new();
         queue.push(self.state.clone());
 
@@ -131,12 +177,38 @@ impl Grid {
 
         while let Some(state) = queue.pop() {
             if state.is_finished() {
-                return state.cost;
+                return Some(state.cost);
+            }
+
+            if let Some(lowest_cost) = costs.get(&state) {
+                if *lowest_cost < state.cost {
+                    continue;
+                }
+            }
+
+            for (index, next_pos) in self.get_next_moves(&state) {
+                let (current_pos, amphipod) = &state.amphipods[index];
+
+                let mut next_state = state.clone();
+                next_state.amphipods[index] = (next_pos.clone(), *amphipod);
+
+                let cost = state.cost + (current_pos.distance(&next_pos) * amphipod.energy()) as usize;
+                if let Some(lowest_cost) = costs.get(&next_state) {
+                    if *lowest_cost <= cost {
+                        continue;
+                    }
+                }
+                costs.insert(next_state.clone(), cost);
+                queue.push(next_state.clone());
             }
         }
 
-        // let visited = self.amphipods().filter(|f|)
-        0
+        None
+    }
+
+    /// Returns all home positions for given amphipod
+    pub fn home_positions(&self, amphipod: Amphipod) -> Vec<(i32, i32)> {
+        self.fields.iter().filter(|&f| f.is_home(&amphipod)).map(|f| (f.x, f.y)).collect_vec()
     }
 
     fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = Option<&Field>> + '_ {
@@ -254,8 +326,17 @@ mod tests {
     }
 
     #[test]
+    fn test_get_home_positions() {
+        let grid = parse_input(INPUT);
+        assert_eq!(vec![(3, 2), (3, 3)], grid.home_positions(Amphipod::Amber));
+        assert_eq!(vec![(5, 2), (5, 3)], grid.home_positions(Amphipod::Bronze));
+        assert_eq!(vec![(7, 2), (7, 3)], grid.home_positions(Amphipod::Copper));
+        assert_eq!(vec![(9, 2), (9, 3)], grid.home_positions(Amphipod::Desert));
+    }
+
+    #[test]
     fn test_organize_amphipods() {
         let grid = parse_input(INPUT);
-        assert_eq!(12521, grid.organize());
+        assert_eq!(12521, grid.organize().unwrap());
     }
 }
