@@ -75,6 +75,10 @@ impl Field {
         }
     }
 
+    pub fn is_occupiable_space(&self) -> bool {
+        self.is_corridor() || self.is_room()
+    }
+
     pub fn distance(&self, dest: &Field) -> i32 {
         (dest.x - self.x).abs() + (dest.y - self.y).abs()
     }
@@ -111,8 +115,8 @@ impl State {
         })
     }
 
-    pub fn is_homeroom(&self) -> bool {
-        false
+    pub fn occupied(&self, rhs: &Field) -> bool {
+        self.amphipods.iter().any(|(field, _amphipod)| field == rhs)
     }
 }
 
@@ -156,15 +160,52 @@ impl Grid {
 
         for (index, (field, amphipod)) in state.amphipods.iter().enumerate() {
             if field.is_corridor() {
-                // TODO?
-
-                for dst in self.home_positions(*amphipod) {
-
+                if !self.home_fields(*amphipod).contains(&field) {
+                    continue;
                 }
+
+                for dest in self.home_fields(*amphipod) {
+                    if self.has_path(field, dest, &state) {
+                        result.push((index, dest))
+                    }
+                }
+
+                continue;
+            }
+
+            for dest in self.corridor_fields() {
+                if dest == field || !self.has_path(field, dest, &state) {
+                    continue;
+                }
+                result.push((index, dest));
             }
         }
 
         result
+    }
+
+    fn has_path(&self, source: &Field, dest: &Field, state: &State) -> bool {
+        if source == dest {
+            return true;
+        }
+
+        let di = dest.x - source.x;
+        if di != 0 {
+            if let Some(next) = self.get(source.x + di.signum(), dest.y) {
+                if next.is_occupiable_space() && !state.occupied(next) {
+                    return self.has_path(next, dest, state);
+                }
+            }
+        }
+
+        let dj = dest.y - source.y;
+        if dj != 0 {
+            if let Some(next) = self.get(source.x, source.y + dj.signum()) {
+                return self.has_path(next, dest, state);
+            }
+        }
+
+        false
     }
 
     /// Moves all amphiods into their rooms, calculates minimum possible total entry
@@ -172,15 +213,15 @@ impl Grid {
         let mut queue: BinaryHeap<State> = BinaryHeap::new();
         queue.push(self.state.clone());
 
-        let mut costs: HashMap<State, usize> = HashMap::new();
-        costs.insert(self.state.clone(), 0);
+        let mut lowest_costs: HashMap<State, usize> = HashMap::new();
+        lowest_costs.insert(self.state.clone(), 0);
 
         while let Some(state) = queue.pop() {
             if state.is_finished() {
                 return Some(state.cost);
             }
 
-            if let Some(lowest_cost) = costs.get(&state) {
+            if let Some(lowest_cost) = lowest_costs.get(&state) {
                 if *lowest_cost < state.cost {
                     continue;
                 }
@@ -193,12 +234,13 @@ impl Grid {
                 next_state.amphipods[index] = (next_pos.clone(), *amphipod);
 
                 let cost = state.cost + (current_pos.distance(&next_pos) * amphipod.energy()) as usize;
-                if let Some(lowest_cost) = costs.get(&next_state) {
+                if let Some(lowest_cost) = lowest_costs.get(&next_state) {
                     if *lowest_cost <= cost {
                         continue;
                     }
                 }
-                costs.insert(next_state.clone(), cost);
+
+                lowest_costs.insert(next_state.clone(), cost);
                 queue.push(next_state.clone());
             }
         }
@@ -207,14 +249,13 @@ impl Grid {
     }
 
     /// Returns all home positions for given amphipod
-    pub fn home_positions(&self, amphipod: Amphipod) -> Vec<(i32, i32)> {
-        self.fields.iter().filter(|&f| f.is_home(&amphipod)).map(|f| (f.x, f.y)).collect_vec()
+    pub fn home_fields(&self, amphipod: Amphipod) -> Vec<&Field> {
+        self.fields.iter().filter(|&f| f.is_home(&amphipod)).collect_vec()
     }
 
-    fn neighbors(&self, x: u32, y: u32) -> impl Iterator<Item = Option<&Field>> + '_ {
-        [(-1, 0), (1, 0), (0, -1), (0, 1)]
-            .iter()
-            .map(move |&(nx, ny)| self.get(x as i32 + nx, y as i32 + ny))
+    /// Returns a list of all corridor fields (skipping entrances)
+    pub fn corridor_fields(&self) -> Vec<&Field> {
+        self.fields.iter().filter(|&f| f.is_corridor()).collect_vec()
     }
 
     fn get(&self, x: i32, y: i32) -> Option<&Field> {
@@ -323,15 +364,6 @@ mod tests {
         ];
         let state = State::new(amphipods);
         assert!(!state.is_finished());
-    }
-
-    #[test]
-    fn test_get_home_positions() {
-        let grid = parse_input(INPUT);
-        assert_eq!(vec![(3, 2), (3, 3)], grid.home_positions(Amphipod::Amber));
-        assert_eq!(vec![(5, 2), (5, 3)], grid.home_positions(Amphipod::Bronze));
-        assert_eq!(vec![(7, 2), (7, 3)], grid.home_positions(Amphipod::Copper));
-        assert_eq!(vec![(9, 2), (9, 3)], grid.home_positions(Amphipod::Desert));
     }
 
     #[test]
