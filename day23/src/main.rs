@@ -57,7 +57,7 @@ impl Field {
         Self { x, y, state }
     }
 
-    pub fn is_corridor(&self) -> bool {
+    pub fn is_hallway(&self) -> bool {
         self.state == FieldState::Corridor
     }
 
@@ -75,10 +75,18 @@ impl Field {
         }
     }
 
-    pub fn is_occupiable_space(&self) -> bool {
-        self.is_corridor() || self.is_room()
+    pub fn is_entrance(&self) -> bool {
+        match self.state {
+            FieldState::Entrance => true,
+            _ => false,
+        }
     }
 
+    pub fn is_occupiable_space(&self) -> bool {
+        self.is_hallway() || self.is_entrance() || self.is_room()
+    }
+
+    /// Calculates the Manhattan distance between two fields
     pub fn distance(&self, dest: &Field) -> i32 {
         (dest.x - self.x).abs() + (dest.y - self.y).abs()
     }
@@ -159,7 +167,7 @@ impl Grid {
         let mut result = Vec::new();
 
         for (index, (field, amphipod)) in state.amphipods.iter().enumerate() {
-            if field.is_corridor() {
+            if field.is_hallway() {
                 if !self.home_fields(*amphipod).contains(&field) {
                     continue;
                 }
@@ -213,8 +221,7 @@ impl Grid {
         let mut queue: BinaryHeap<State> = BinaryHeap::new();
         queue.push(self.state.clone());
 
-        let mut lowest_costs: HashMap<State, usize> = HashMap::new();
-        lowest_costs.insert(self.state.clone(), 0);
+        let mut lowest_costs: HashMap<State, usize> = [(self.state.clone(), 0)].into_iter().collect();
 
         while let Some(state) = queue.pop() {
             if state.is_finished() {
@@ -255,7 +262,7 @@ impl Grid {
 
     /// Returns a list of all corridor fields (skipping entrances)
     pub fn corridor_fields(&self) -> Vec<&Field> {
-        self.fields.iter().filter(|&f| f.is_corridor()).collect_vec()
+        self.fields.iter().filter(|&f| f.is_hallway()).collect_vec()
     }
 
     fn get(&self, x: i32, y: i32) -> Option<&Field> {
