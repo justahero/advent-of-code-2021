@@ -157,12 +157,12 @@ impl ALU {
     }
 
     pub fn run(&mut self, instructions: &Vec<Instruction>, inputs: &[i32]) -> i32 {
-        println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
+        // println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
 
         let mut inputs = inputs.iter().cloned().collect::<VecDeque<_>>();
 
         for instruction in instructions.iter() {
-            println!("> instruction: {:?}", instruction);
+            // println!("> instruction: {:?}", instruction);
 
             match instruction {
                 Instruction::Input(reg) => self.write(reg, inputs.pop_front().unwrap()),
@@ -171,18 +171,15 @@ impl ALU {
                 Instruction::Mod(reg, b) => *self.get_mut(reg) %= self.variable(b),
                 Instruction::Div(reg, b) => *self.get_mut(reg) /= self.variable(b),
                 Instruction::Equal(reg, b) => {
-                    println!("  eql - a: {:?}, b: {:?}", reg, b);
                     let v = if self.read(reg) == self.variable(b) {
-                        println!("  : 1");
                         1
                     } else {
-                        println!("  : 0");
                         0
                     };
                     self.write(reg, v);
                 }
             }
-            println!("  registers: {:?}", self.variables);
+            // println!("  registers: {:?}", self.variables);
         }
 
         self.variables[usize::from(Register::Z)]
@@ -209,8 +206,8 @@ impl Solver {
         Self { programs, cache: HashMap::new() }
     }
 
-    pub fn run(&mut self, num_digits: usize, prev_z: i32, range: Range<i32>) -> Option<i64> {
-        println!("> run num_digits: {}, prev_z: {}", num_digits, prev_z);
+    pub fn run(&mut self, num_digits: usize, prev_z: i32, range: Vec<i32>) -> Option<i64> {
+        // println!("> run num_digits: {}, prev_z: {}", num_digits, prev_z);
 
         if num_digits >= self.num_digits() {
             if prev_z == 0 {
@@ -223,11 +220,11 @@ impl Solver {
             return cached;
         }
 
-        for input in range.clone() {
-            let next_z = ALU::new(prev_z).run(&self.programs[num_digits], &vec![input]);
+        for input in range.iter() {
+            let next_z = ALU::new(prev_z).run(&self.programs[num_digits], &vec![*input]);
             if let Some(best_suffix) = self.run(num_digits + 1, next_z, range.clone()) {
                 let exp = self.num_digits() - num_digits - 1;
-                let new_suffix = 10_i64.pow(exp as u32) * input as i64 + best_suffix;
+                let new_suffix = 10_i64.pow(exp as u32) * (*input) as i64 + best_suffix;
 
                 self.cache.insert((num_digits, prev_z), Some(new_suffix));
                 return Some(new_suffix);
@@ -258,7 +255,9 @@ fn main() -> anyhow::Result<()> {
     let instructions = parse_input(include_str!("input.txt"))?;
     let mut solver = Solver::new(&instructions, 14);
 
-    dbg!(solver.run(0, 0, 1..10));
+    let result = solver.run(0, 0, (1..10).rev().collect_vec());
+    dbg!(result);
+    // 41171183141291
 
     Ok(())
 }
