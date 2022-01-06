@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range};
+use std::{collections::{HashMap, VecDeque}, ops::Range};
 
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -157,26 +157,32 @@ impl ALU {
     }
 
     pub fn run(&mut self, instructions: &Vec<Instruction>, inputs: &[i32]) -> i32 {
-        // println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
+        println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
 
-        let mut inputs = inputs.iter().cloned().collect_vec();
+        let mut inputs = inputs.iter().cloned().collect::<VecDeque<_>>();
 
-        for instruction in instructions {
+        for instruction in instructions.iter() {
+            println!("> instruction: {:?}", instruction);
+
             match instruction {
-                Instruction::Input(reg) => *self.get_mut(reg) = inputs.pop().unwrap(),
-                Instruction::Add(a, b) => *self.get_mut(a) += self.variable(b),
-                Instruction::Mul(a, b) => *self.get_mut(a) *= self.variable(b),
-                Instruction::Mod(a, b) => *self.get_mut(a) %= self.variable(b),
-                Instruction::Div(a, b) => *self.get_mut(a) /= self.variable(b),
-                Instruction::Equal(a, b) => {
-                    let v = if self.read(a) == self.variable(b) {
+                Instruction::Input(reg) => self.write(reg, inputs.pop_front().unwrap()),
+                Instruction::Add(reg, b) => *self.get_mut(reg) += self.variable(b),
+                Instruction::Mul(reg, b) => *self.get_mut(reg) *= self.variable(b),
+                Instruction::Mod(reg, b) => *self.get_mut(reg) %= self.variable(b),
+                Instruction::Div(reg, b) => *self.get_mut(reg) /= self.variable(b),
+                Instruction::Equal(reg, b) => {
+                    println!("  eql - a: {:?}, b: {:?}", reg, b);
+                    let v = if self.read(reg) == self.variable(b) {
+                        println!("  : 1");
                         1
                     } else {
+                        println!("  : 0");
                         0
                     };
-                    self.write(a, v);
+                    self.write(reg, v);
                 }
             }
+            println!("  registers: {:?}", self.variables);
         }
 
         self.variables[usize::from(Register::Z)]
@@ -204,6 +210,8 @@ impl Solver {
     }
 
     pub fn run(&mut self, num_digits: usize, prev_z: i32, range: Range<i32>) -> Option<i64> {
+        println!("> run num_digits: {}, prev_z: {}", num_digits, prev_z);
+
         if num_digits >= self.num_digits() {
             if prev_z == 0 {
                 return Some(0);
@@ -285,6 +293,7 @@ mod tests {
         "#;
         let instructions = parse_input(input).unwrap();
         let mut alu = ALU::new(0);
+        println!("ALU: {:?}", alu);
         assert_eq!(1, alu.run(&instructions, &[1, 3]));
     }
 }
