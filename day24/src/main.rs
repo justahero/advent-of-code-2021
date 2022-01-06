@@ -207,8 +207,6 @@ impl Solver {
     }
 
     pub fn run(&mut self, num_digits: usize, prev_z: i32, range: Vec<i32>) -> Option<i64> {
-        // println!("> run num_digits: {}, prev_z: {}", num_digits, prev_z);
-
         if num_digits >= self.num_digits() {
             if prev_z == 0 {
                 return Some(0);
@@ -253,11 +251,14 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<Instruction>> {
 
 fn main() -> anyhow::Result<()> {
     let instructions = parse_input(include_str!("input.txt"))?;
-    let mut solver = Solver::new(&instructions, 14);
 
+    let mut solver = Solver::new(&instructions, 14);
     let result = solver.run(0, 0, (1..10).rev().collect_vec());
     dbg!(result);
-    // 41171183141291
+
+    let mut solver = Solver::new(&instructions, 14);
+    let result = solver.run(0, 0, (1..10).collect_vec());
+    dbg!(result);
 
     Ok(())
 }
