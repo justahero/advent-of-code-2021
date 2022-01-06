@@ -1,10 +1,6 @@
 use anyhow::anyhow;
 use itertools::Itertools;
 
-trait Applicable {
-    fn apply(&self, alu: &mut ALU);
-}
-
 peg::parser! {
     grammar line_parser() for str {
         rule register() -> Register
@@ -32,21 +28,50 @@ peg::parser! {
                 Instruction::Mul(a, b)
             }
 
+        rule modulo() -> Instruction
+            = "mod " a:register() " " b:variable() {
+                Instruction::Mod(a, b)
+            }
+
+        rule div() -> Instruction
+            = "div " a:register() " " b:variable() {
+                Instruction::Div(a, b)
+            }
+
+        rule equal() -> Instruction
+            = "eql " a:register() " " b:variable() {
+                Instruction::Equal(a, b)
+            }
+
         pub(crate) rule instruction() -> Instruction
             = instruction:input()
             / instruction:add()
-            / instruction:mul() {
+            / instruction:mul()
+            / instruction:modulo()
+            / instruction:div()
+            / instruction:equal() {
                 instruction
             }
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Register {
     W,
     X,
     Y,
     Z,
+}
+
+impl From<Register> for usize {
+    fn from(reg: Register) -> Self {
+        match reg {
+            Register::W => 0,
+            Register::X => 1,
+            Register::Y => 2,
+            Register::Z => 3,
+        }
+    }
 }
 
 impl From<&str> for Register {
@@ -84,18 +109,9 @@ enum Instruction {
     Input(Register),
     Add(Register, Variable),
     Mul(Register, Variable),
+    Div(Register, Variable),
     Mod(Register, Variable),
-}
-
-impl Applicable for Instruction {
-    fn apply(&self, alu: &mut ALU) {
-        match self {
-            Instruction::Input(variable) => (),
-            Instruction::Add(a, b) => (),
-            Instruction::Mul(a, b) => (),
-            Instruction::Mod(a, b) => (),
-        }
-    }
+    Equal(Register, Variable),
 }
 
 impl TryFrom<&str> for Instruction {
@@ -118,23 +134,62 @@ impl Instruction {
 #[derive(Debug, Clone)]
 struct ALU {
     pub variables: [i32; 4],
-    pub input: u8,
 }
 
 impl Default for ALU {
     fn default() -> Self {
-        Self { variables: [0; 4], input: 0 }
+        Self {
+            variables: [0; 4],
+        }
     }
 }
 
 impl ALU {
-    pub fn set(&mut self, variable: &Variable) {
-        // self.variables[usize::from(variable)] = self.input as i32;
+    /// Reads the given register value
+    pub fn read(&self, reg: &Register) -> i32 {
+        self.variables[usize::from(*reg)]
+    }
+
+    fn get_mut(&mut self, reg: &Register) -> &mut i32 {
+        &mut self.variables[usize::from(*reg)]
+    }
+
+    fn write(&mut self, reg: &Register, value: i32) {
+        self.variables[usize::from(*reg)] = value;
+    }
+
+    fn variable(&self, variable: &Variable) -> i32 {
+        match variable {
+            Variable::Register(reg) => self.read(reg),
+            Variable::Number(value) => *value,
+        }
+    }
+
+    pub fn eval(&mut self, instructions: &Vec<&Instruction>, input: i32) -> i32 {
+        for instruction in instructions {
+            match instruction {
+                Instruction::Input(reg) => *self.get_mut(reg) = input,
+                Instruction::Add(a, b) => *self.get_mut(a) += self.variable(b),
+                Instruction::Mul(a, b) => *self.get_mut(a) *= self.variable(b),
+                Instruction::Mod(a, b) => *self.get_mut(a) %= self.variable(b),
+                Instruction::Div(a, b) => *self.get_mut(a) /= self.variable(b),
+                Instruction::Equal(a, b) => {
+                    let v = if self.read(a) == self.variable(b) {
+                        1
+                    } else {
+                        0
+                    };
+                    self.write(a, v);
+                }
+            }
+        }
+
+        self.variables[3]
     }
 }
 
 impl ALU {
-    pub fn find_highest_number(instructions: &Vec<Instruction>) -> String {
+    pub fn run_program(instructions: &Vec<Instruction>) -> String {
         let mut blocks = Vec::new();
         for (_, group) in &instructions.into_iter().group_by(|&i| i.is_input()) {
             blocks.push(group.collect_vec());
@@ -142,31 +197,20 @@ impl ALU {
 
         println!("find_highest_number - instructions: {:?}", blocks);
 
-        let mut result: Vec<Vec<(u8, ALU)>> = Vec::new();
+        let mut result: Vec<Vec<(i32, i32)>> = Vec::new();
         let mut alu = ALU::default();
 
         for block in blocks {
-            let output: Vec<(u8, ALU)> = (1..=9)
+            let output: Vec<_> = (1..=9)
                 .into_iter()
-                .map(|number| (number, alu.run(&block[..], number)))
-                .filter(|(_number, alu)| alu.variables[3] != 0)
+                .map(|number| (number, alu.eval(&block, number)))
+                .filter(|&(_number, result)| result != 0)
                 .collect_vec();
 
             result.push(output);
         }
 
         "".to_string()
-    }
-
-    pub fn run(&self, instructions: &[&Instruction], input: u8) -> ALU {
-        let mut alu = self.clone();
-        alu.input = input;
-
-        for instruction in instructions {
-
-        }
-
-        alu
     }
 }
 
@@ -184,14 +228,14 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<Instruction>> {
 fn main() -> anyhow::Result<()> {
     let instructions = parse_input(include_str!("input.txt"))?;
 
-    dbg!(ALU::find_highest_number(&instructions));
+    dbg!(ALU::run_program(&instructions));
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Instruction, Register, Variable, parse_input};
+    use crate::{parse_input, Instruction, Register, Variable};
 
     #[test]
     fn test_parse_input() {
@@ -217,5 +261,6 @@ mod tests {
             mul z 3
             eql z x
         "#;
+        let instructions = parse_input(input).unwrap();
     }
 }
