@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use anyhow::anyhow;
 use itertools::Itertools;
 
@@ -86,7 +88,7 @@ impl From<&str> for Register {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Variable {
     Register(Register),
     Number(i32),
@@ -104,7 +106,7 @@ impl From<Register> for Variable {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Instruction {
     Input(Register),
     Add(Register, Variable),
@@ -165,10 +167,14 @@ impl ALU {
         }
     }
 
-    pub fn eval(&mut self, instructions: &Vec<&Instruction>, input: i32) -> i32 {
+    pub fn eval(&mut self, instructions: &Vec<Instruction>, inputs: &[i32]) -> i32 {
+        println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
+
+        let mut inputs = inputs.iter().cloned().collect_vec();
+
         for instruction in instructions {
             match instruction {
-                Instruction::Input(reg) => *self.get_mut(reg) = input,
+                Instruction::Input(reg) => *self.get_mut(reg) = inputs.pop().unwrap(),
                 Instruction::Add(a, b) => *self.get_mut(a) += self.variable(b),
                 Instruction::Mul(a, b) => *self.get_mut(a) *= self.variable(b),
                 Instruction::Mod(a, b) => *self.get_mut(a) %= self.variable(b),
@@ -184,33 +190,30 @@ impl ALU {
             }
         }
 
-        self.variables[3]
+        self.variables[usize::from(Register::Z)]
     }
 }
 
-impl ALU {
-    pub fn run_program(instructions: &Vec<Instruction>) -> String {
-        let mut blocks = Vec::new();
-        for (_, group) in &instructions.into_iter().group_by(|&i| i.is_input()) {
-            blocks.push(group.collect_vec());
-        }
+struct Solver {
+    pub programs: Vec<Vec<Instruction>>,
+}
 
-        println!("find_highest_number - instructions: {:?}", blocks);
+impl Solver {
+    pub fn new(instructions: &Vec<Instruction>, num_digits: usize) -> Self {
+        let chunk = instructions.len() / num_digits;
+        let programs = instructions
+            .iter()
+            .cloned()
+            .chunks(chunk)
+            .into_iter()
+            .map(|program| program.collect_vec())
+            .collect_vec();
 
-        let mut result: Vec<Vec<(i32, i32)>> = Vec::new();
-        let mut alu = ALU::default();
+        Self { programs }
+    }
 
-        for block in blocks {
-            let output: Vec<_> = (1..=9)
-                .into_iter()
-                .map(|number| (number, alu.eval(&block, number)))
-                .filter(|&(_number, result)| result != 0)
-                .collect_vec();
-
-            result.push(output);
-        }
-
-        "".to_string()
+    pub fn run(&self, numbers: Range<i32>) -> i32 {
+        0
     }
 }
 
@@ -227,15 +230,16 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<Instruction>> {
 
 fn main() -> anyhow::Result<()> {
     let instructions = parse_input(include_str!("input.txt"))?;
+    let solver = Solver::new(&instructions, 14);
 
-    dbg!(ALU::run_program(&instructions));
+    dbg!(solver.run(1..10));
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Instruction, Register, Variable};
+    use crate::{ALU, Instruction, Register, Variable, parse_input};
 
     #[test]
     fn test_parse_input() {
@@ -262,5 +266,7 @@ mod tests {
             eql z x
         "#;
         let instructions = parse_input(input).unwrap();
+        let mut alu = ALU::default();
+        assert_eq!(1, alu.eval(&instructions, &[1, 3]));
     }
 }
