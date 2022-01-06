@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -124,25 +124,14 @@ impl TryFrom<&str> for Instruction {
     }
 }
 
-impl Instruction {
-    pub fn is_input(&self) -> bool {
-        match &self {
-            Instruction::Input(_) => true,
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct ALU {
     pub variables: [i32; 4],
 }
 
-impl Default for ALU {
-    fn default() -> Self {
-        Self {
-            variables: [0; 4],
-        }
+impl ALU {
+    pub fn new(zreg: i32) -> Self {
+        Self { variables: [0, 0, 0, zreg] }
     }
 }
 
@@ -167,8 +156,8 @@ impl ALU {
         }
     }
 
-    pub fn eval(&mut self, instructions: &Vec<Instruction>, inputs: &[i32]) -> i32 {
-        println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
+    pub fn run(&mut self, instructions: &Vec<Instruction>, inputs: &[i32]) -> i32 {
+        // println!("> alu::eval instructions: {}, input: {:?}", instructions.len(), inputs);
 
         let mut inputs = inputs.iter().cloned().collect_vec();
 
@@ -194,8 +183,10 @@ impl ALU {
     }
 }
 
+#[derive(Debug)]
 struct Solver {
-    pub programs: Vec<Vec<Instruction>>,
+    programs: Vec<Vec<Instruction>>,
+    cache: HashMap<(usize, i32), Option<i64>>,
 }
 
 impl Solver {
@@ -209,11 +200,38 @@ impl Solver {
             .map(|program| program.collect_vec())
             .collect_vec();
 
-        Self { programs }
+        Self { programs, cache: HashMap::new() }
     }
 
-    pub fn run(&self, numbers: Range<i32>) -> i32 {
-        0
+    pub fn run(&mut self, num_digits: usize, prev_z: i32, range: Range<i32>) -> Option<i64> {
+        if num_digits >= self.num_digits() {
+            if prev_z == 0 {
+                return Some(0);
+            }
+            return None;
+        }
+
+        if let Some(&cached) = self.cache.get(&(num_digits, prev_z)) {
+            return cached;
+        }
+
+        for input in range.clone() {
+            let next_z = ALU::new(prev_z).run(&self.programs[num_digits], &vec![input]);
+            if let Some(best_suffix) = self.run(num_digits + 1, next_z, range.clone()) {
+                let exp = self.num_digits() - num_digits - 1;
+                let new_suffix = 10_i64.pow(exp as u32) * input as i64 + best_suffix;
+
+                self.cache.insert((num_digits, prev_z), Some(new_suffix));
+                return Some(new_suffix);
+            }
+        }
+
+        self.cache.insert((num_digits, prev_z), None);
+        None
+    }
+
+    fn num_digits(&self) -> usize {
+        self.programs.len()
     }
 }
 
@@ -230,9 +248,9 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<Instruction>> {
 
 fn main() -> anyhow::Result<()> {
     let instructions = parse_input(include_str!("input.txt"))?;
-    let solver = Solver::new(&instructions, 14);
+    let mut solver = Solver::new(&instructions, 14);
 
-    dbg!(solver.run(1..10));
+    dbg!(solver.run(0, 0, 1..10));
 
     Ok(())
 }
@@ -266,7 +284,7 @@ mod tests {
             eql z x
         "#;
         let instructions = parse_input(input).unwrap();
-        let mut alu = ALU::default();
-        assert_eq!(1, alu.eval(&instructions, &[1, 3]));
+        let mut alu = ALU::new(0);
+        assert_eq!(1, alu.run(&instructions, &[1, 3]));
     }
 }
