@@ -1,268 +1,306 @@
-use std::{cmp::Ordering, collections::{BinaryHeap, HashMap, HashSet}, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    hash::Hash,
+};
 
 use itertools::Itertools;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Amphipod {
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum FieldType {
+    /// The corridor
+    Corridor,
+    /// Entrance right in front of the room
+    Entrance,
+    /// The room with designated amphipod
+    Room(Type),
+    /// A wall
+    Wall,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct Pos {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Pos {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct Field {
+    pub pos: Pos,
+    pub state: FieldType,
+}
+
+impl Field {
+    pub fn new(x: i32, y: i32, state: FieldType) -> Self {
+        Self {
+            pos: Pos::new(x, y),
+            state,
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_wall(&self) -> bool {
+        self.state == FieldType::Wall
+    }
+
+    #[inline(always)]
+    pub fn is_hallway(&self) -> bool {
+        self.state == FieldType::Corridor
+    }
+
+    #[inline(always)]
+    pub fn is_home(&self, amphipod: Type) -> bool {
+        self.state == FieldType::Room(amphipod)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum Type {
     Amber,
     Bronze,
     Copper,
     Desert,
 }
 
-impl From<char> for Amphipod {
+impl Type {
+    fn energy(&self) -> u32 {
+        match self {
+            Type::Amber => 1,
+            Type::Bronze => 10,
+            Type::Copper => 100,
+            Type::Desert => 1000,
+        }
+    }
+}
+
+impl From<char> for Type {
     fn from(c: char) -> Self {
         match c {
-            'A' => Amphipod::Amber,
-            'B' => Amphipod::Bronze,
-            'C' => Amphipod::Copper,
-            'D' => Amphipod::Desert,
+            'A' => Type::Amber,
+            'B' => Type::Bronze,
+            'C' => Type::Copper,
+            'D' => Type::Desert,
             _ => unreachable!(),
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct Amphipod {
+    typ: Type,
+    pos: Pos,
+}
+
 impl Amphipod {
-    pub fn energy(&self) -> i32 {
-        match self {
-            Amphipod::Amber => 1,
-            Amphipod::Bronze => 10,
-            Amphipod::Copper => 100,
-            Amphipod::Desert => 1000,
-        }
+    pub fn new(pos: Pos, amphipod: Type) -> Self {
+        Self { pos, typ: amphipod }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum FieldState {
-    /// The corridor
-    Corridor,
-    /// Entrance right in front of the room
-    Entrance,
-    /// The room with designated amphipod
-    Room(Amphipod),
-    /// A wall
-    Wall,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Field {
-    pub x: i32,
-    pub y: i32,
-    pub state: FieldState,
-}
-
-impl Field {
-    pub fn new(x: i32, y: i32, state: FieldState) -> Self {
-        Self { x, y, state }
-    }
-
-    pub fn is_hallway(&self) -> bool {
-        self.state == FieldState::Corridor
-    }
-
-    pub fn is_room(&self) -> bool {
-        match self.state {
-            FieldState::Room(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_home(&self, amphipod: &Amphipod) -> bool {
-        match self.state {
-            FieldState::Room(ref a) => a == amphipod,
-            _ => false,
-        }
-    }
-
-    pub fn is_entrance(&self) -> bool {
-        match self.state {
-            FieldState::Entrance => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_occupiable_space(&self) -> bool {
-        self.is_hallway() || self.is_entrance() || self.is_room()
-    }
-
-    /// Calculates the Manhattan distance between two fields
-    pub fn distance(&self, dest: &Field) -> i32 {
-        (dest.x - self.x).abs() + (dest.y - self.y).abs()
-    }
-}
-
-impl Display for Field {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let x = match &self.state {
-            FieldState::Corridor => ".".to_string(),
-            FieldState::Entrance => "+".to_string(),
-            FieldState::Room(_) => "_".to_string(),
-            FieldState::Wall => "#".to_string(),
-        };
-        write!(f, "{}", x)
-    }
-}
-
-/// Keeps information on all amphipods and their cost
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct State {
-    pub amphipods: Vec<(Field, Amphipod)>,
-    pub cost: usize,
+    pub amphipods: Vec<Amphipod>,
 }
 
 impl State {
-    pub fn new(amphipods: Vec<(Field, Amphipod)>) -> Self {
-        Self { amphipods, cost: 0 }
+    pub fn new(amphipods: Vec<Amphipod>) -> Self {
+        Self { amphipods }
     }
 
-    /// Returns true if all amphipods are in their designated rooms
-    pub fn is_finished(&self) -> bool {
-        self.amphipods.iter().all(|(field, amphipod)| {
-            field.state == FieldState::Room(*amphipod)
-        })
+    pub fn get(&self, rhs: &Pos) -> Option<&Amphipod> {
+        self.amphipods.iter().find(|&amphipod| amphipod.pos == *rhs)
     }
 
-    pub fn occupied(&self, rhs: &Field) -> bool {
-        self.amphipods.iter().any(|(field, _amphipod)| field == rhs)
+    pub fn blocks(&self, rhs: &Pos) -> bool {
+        self.get(rhs).is_some()
     }
 }
 
-impl Ord for State {
-    fn cmp(&self, rhs: &Self) -> Ordering {
-        rhs.cost.cmp(&self.cost)
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
-        Some(self.cmp(rhs))
-    }
-}
-
+/// Represents the full 2d grid parsed from input.
 #[derive(Debug)]
 struct Grid {
     pub fields: Vec<Field>,
-    pub state: State,
     pub width: u32,
     pub height: u32,
 }
 
 impl Grid {
-    pub fn new(fields: Vec<Field>, amphipods: Vec<(Field, Amphipod)>) -> Self {
-        let width = fields.iter().map(|f| f.x).max().unwrap() as u32 + 1;
-        let height = fields.iter().map(|f| f.y).max().unwrap() as u32 + 1;
+    pub fn new(fields: Vec<Field>) -> Self {
+        let width = fields.iter().map(|f| f.pos.x).max().unwrap() as u32 + 1;
+        let height = fields.iter().map(|f| f.pos.y).max().unwrap() as u32 + 1;
 
         Self {
             fields,
-            state: State::new(amphipods),
             width,
             height,
         }
     }
 
-    /// Get the next moves for all amphipods
-    /// Returns index of amphipod and their next field.
-    fn get_next_moves(&self, state: &State) -> Vec<(usize, &Field)> {
+    pub fn organize(&self, state: &State, cost: u32, cache: &mut HashMap<State, u32>) -> u32 {
+        if self.is_finished(state) {
+            return cost;
+        }
+
+        let mut best = u32::MAX;
+
+        for (index, amphipod) in state.amphipods.iter().enumerate() {
+            let paths = self.find_next_moves(amphipod, state);
+
+            for path in paths {
+                if let Some(Field { pos: next_pos, .. }) = path.last() {
+                    let amphipod = state.amphipods[index];
+                    let mut next_state = state.clone();
+
+                    next_state.amphipods[index] = Amphipod::new(*next_pos, amphipod.typ);
+                    next_state.amphipods.sort();
+
+                    let next_cost = cost + (path.len() - 1) as u32 * amphipod.typ.energy();
+                    if let Some(&prev_cost) = cache.get(&next_state) {
+                        if prev_cost <= next_cost {
+                            continue;
+                        }
+                    }
+
+                    cache.insert(next_state.clone(), next_cost);
+                    best = best.min(self.organize(&next_state, next_cost, cache));
+                }
+            }
+        }
+
+        best
+    }
+
+    fn is_finished(&self, state: &State) -> bool {
+        state.amphipods.iter().all(|amphipod| {
+            if let Some(room) = self.get(amphipod.pos.x, amphipod.pos.y) {
+                room.is_home(amphipod.typ)
+            } else {
+                false
+            }
+        })
+    }
+
+    fn find_next_moves(&self, amphipod: &Amphipod, state: &State) -> Vec<Vec<&Field>> {
         let mut result = Vec::new();
 
-        for (index, (field, amphipod)) in state.amphipods.iter().enumerate() {
-            if field.is_hallway() {
-                if !self.home_fields(*amphipod).contains(&field) {
-                    continue;
-                }
+        let &Amphipod { pos, .. } = amphipod;
 
-                for dest in self.home_fields(*amphipod) {
-                    if self.has_path(field, dest, &state) {
-                        result.push((index, dest))
-                    }
-                }
+        let field = self.get(pos.x, pos.y).expect("Failed to get field");
 
-                continue;
-            }
+        // get designated home room
+        let intended_pos = self.get_home_room(&amphipod, &state);
+        if intended_pos == pos {
+            return result;
+        }
 
-            for dest in self.corridor_fields() {
-                if dest == field || !self.has_path(field, dest, &state) {
-                    continue;
-                }
-                result.push((index, dest));
+        if let Some(path) = self.find_path(pos, intended_pos, &state) {
+            result.push(path);
+            return result;
+        }
+
+        // Amphipod is already on one of the hallway fields, keep it there until it can move to a room.
+        if field.is_hallway() {
+            return result;
+        }
+
+        // Amphipod is in the wrong room, there is no unhindered path to the correct room.
+        // Therefore can only move to a field in the hallway.
+        for dest in self.free_hallway_spaces(&state) {
+            if let Some(path) = self.find_path(pos, dest.pos, &state) {
+                result.push(path);
             }
         }
 
         result
     }
 
-    fn has_path(&self, source: &Field, dest: &Field, state: &State) -> bool {
-        if source == dest {
-            return true;
-        }
-
-        let di = dest.x - source.x;
-        if di != 0 {
-            if let Some(next) = self.get(source.x + di.signum(), dest.y) {
-                if next.is_occupiable_space() && !state.occupied(next) {
-                    return self.has_path(next, dest, state);
-                }
-            }
-        }
-
-        let dj = dest.y - source.y;
-        if dj != 0 {
-            if let Some(next) = self.get(source.x, source.y + dj.signum()) {
-                return self.has_path(next, dest, state);
-            }
-        }
-
-        false
-    }
-
-    /// Moves all amphiods into their rooms, calculates minimum possible total entry
-    pub fn organize(&self) -> Option<usize> {
-        let mut queue: BinaryHeap<State> = BinaryHeap::new();
-        queue.push(self.state.clone());
-
-        let mut lowest_costs: HashMap<State, usize> = [(self.state.clone(), 0)].into_iter().collect();
-
-        while let Some(state) = queue.pop() {
-            if state.is_finished() {
-                return Some(state.cost);
+    /// Return the desired home room field of the given amphipod
+    fn get_home_room(&self, amphipod: &Amphipod, state: &State) -> Pos {
+        for dest in self.home_rooms(amphipod.typ) {
+            if dest.pos == amphipod.pos {
+                return dest.pos;
             }
 
-            if let Some(lowest_cost) = lowest_costs.get(&state) {
-                if *lowest_cost < state.cost {
-                    continue;
-                }
-            }
-
-            for (index, next_pos) in self.get_next_moves(&state) {
-                let (current_pos, amphipod) = &state.amphipods[index];
-
-                let mut next_state = state.clone();
-                next_state.amphipods[index] = (next_pos.clone(), *amphipod);
-
-                let cost = state.cost + (current_pos.distance(&next_pos) * amphipod.energy()) as usize;
-                if let Some(lowest_cost) = lowest_costs.get(&next_state) {
-                    if *lowest_cost <= cost {
-                        continue;
+            match state.get(&dest.pos) {
+                None => return dest.pos,
+                Some(&other) => {
+                    if other.typ != amphipod.typ {
+                        return dest.pos;
                     }
                 }
+            }
+        }
 
-                lowest_costs.insert(next_state.clone(), cost);
-                queue.push(next_state.clone());
+        unreachable!()
+    }
+
+    /// A simple breadth first search algorithm that returns the shortest path to the destination
+    /// or `None` if there is none present.
+    pub fn find_path(&self, source: Pos, dest: Pos, state: &State) -> Option<Vec<&Field>> {
+        if source == dest {
+            return None;
+        }
+
+        let mut paths: VecDeque<Vec<&Field>> = VecDeque::new();
+        let mut visited: Vec<&Field> = Vec::new();
+        paths.push_back(vec![self.get_field(source.x, source.y)]);
+
+        while let Some(path) = paths.pop_front() {
+            let last = *path.last().expect("No last element found");
+            visited.push(last);
+            if last.pos == dest {
+                return Some(path);
+            }
+
+            for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                let (x, y) = (last.pos.x + dx, last.pos.y + dy);
+                if let Some(neighbor) = self.get(x, y) {
+                    if neighbor.is_wall() {
+                        continue;
+                    }
+
+                    if visited.contains(&neighbor) {
+                        continue;
+                    }
+
+                    if state.blocks(&neighbor.pos) {
+                        continue;
+                    }
+
+                    let mut path = path.clone();
+                    path.push(neighbor);
+                    paths.push_back(path);
+                }
             }
         }
 
         None
     }
 
-    /// Returns all home positions for given amphipod
-    pub fn home_fields(&self, amphipod: Amphipod) -> Vec<&Field> {
-        self.fields.iter().filter(|&f| f.is_home(&amphipod)).collect_vec()
+    fn home_rooms(&self, amphipod: Type) -> Vec<&Field> {
+        self.fields
+            .iter()
+            .rev()
+            .filter(|&f| f.is_home(amphipod))
+            .collect_vec()
     }
 
-    /// Returns a list of all corridor fields (skipping entrances)
-    pub fn corridor_fields(&self) -> Vec<&Field> {
-        self.fields.iter().filter(|&f| f.is_hallway()).collect_vec()
+    fn free_hallway_spaces(&self, state: &State) -> Vec<&Field> {
+        self.fields
+            .iter()
+            .filter(|&f| f.is_hallway() && !state.blocks(&f.pos))
+            .collect_vec()
+    }
+
+    fn get_field(&self, x: i32, y: i32) -> &Field {
+        assert!(0 <= x && x < self.width as i32);
+        assert!(0 <= y && y < self.height as i32);
+        &self.fields[(y * self.width as i32 + x) as usize]
     }
 
     fn get(&self, x: i32, y: i32) -> Option<&Field> {
@@ -274,30 +312,16 @@ impl Grid {
     }
 }
 
-impl Display for Grid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if let Some(field) = self.get(x as i32, y as i32) {
-                    write!(f, "{}", field)?;
-                }
-            }
-            writeln!(f)?;
-        }
-        Ok(())
-    }
-}
-
 /// Parses the input
-fn parse_input(input: &str) -> Grid {
+fn parse_input(input: &str) -> (Grid, State) {
     let entrances = [(3, 1), (5, 1), (7, 1), (9, 1)]
         .into_iter()
         .collect::<HashSet<_>>();
     let designated_rooms = [
-        (3, Amphipod::Amber),
-        (5, Amphipod::Bronze),
-        (7, Amphipod::Copper),
-        (9, Amphipod::Desert),
+        (3, Type::Amber),
+        (5, Type::Bronze),
+        (7, Type::Copper),
+        (9, Type::Desert),
     ]
     .into_iter()
     .collect::<HashMap<_, _>>();
@@ -309,36 +333,46 @@ fn parse_input(input: &str) -> Grid {
         for (x, c) in line.chars().enumerate() {
             let (x, y) = (x as i32, y as i32);
             match c {
-                '#' | ' ' => fields.push(Field::new(x, y, FieldState::Wall)),
+                '#' | ' ' => fields.push(Field::new(x, y, FieldType::Wall)),
                 '.' => {
                     if entrances.contains(&(x, y)) {
-                        fields.push(Field::new(x, y, FieldState::Entrance));
+                        fields.push(Field::new(x, y, FieldType::Entrance));
                     } else {
-                        fields.push(Field::new(x, y, FieldState::Corridor));
+                        fields.push(Field::new(x, y, FieldType::Corridor));
                     }
                 }
                 'A' | 'B' | 'C' | 'D' => {
                     let designated = &designated_rooms[&(x as usize)];
-                    let field = Field::new(x, y, FieldState::Room(designated.clone()));
+                    let field = Field::new(x, y, FieldType::Room(*designated));
                     fields.push(field.clone());
-                    amphipods.push((field, Amphipod::from(c)));
+                    amphipods.push(Amphipod::new(field.pos, Type::from(c)))
                 }
                 _ => unreachable!(),
             }
         }
     }
+    amphipods.sort();
 
-    Grid::new(fields, amphipods)
+    (Grid::new(fields), State::new(amphipods))
 }
 
 fn main() {
-    let grid = parse_input(include_str!("input.txt"));
-    dbg!(grid.organize());
+    let (grid, start) = parse_input(include_str!("input1.txt"));
+    let cost = grid.organize(&start, 0, &mut HashMap::new());
+    assert_eq!(11320, cost);
+    dbg!(cost);
+
+    let (grid, start) = parse_input(include_str!("input2.txt"));
+    let cost = grid.organize(&start, 0, &mut HashMap::new());
+    assert_eq!(49532, cost);
+    dbg!(cost);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Amphipod, Field, FieldState, State, parse_input};
+    use std::collections::HashMap;
+
+    use crate::{parse_input, Pos};
 
     const INPUT: &str = r#"#############
 #...........#
@@ -346,36 +380,57 @@ mod tests {
   #A#D#C#A#  
   #########  "#;
 
-    #[test]
-    fn test_parse_input() {
-        let grid = parse_input(INPUT);
-        assert_eq!(8, grid.state.amphipods.len());
-    }
+    const INPUT2: &str = r#"#############
+#...........#
+###B#C#B#D###
+  #D#C#B#A#  
+  #D#B#A#C#  
+  #A#D#C#A#  
+  #########  "#;
 
     #[test]
-    fn test_state_is_finished() {
-        let amphipod = Amphipod::Amber;
-        let state = State::new(vec![(Field::new(1, 1, FieldState::Room(amphipod)), amphipod)]);
-        assert!(state.is_finished());
-    }
+    fn test_multiple_paths() {
+        let (grid, mut start) = parse_input(INPUT2);
 
-    #[test]
-    fn test_state_is_not_finished() {
-        let fields = vec![
-            Field::new(2, 2, FieldState::Corridor),
-            Field::new(1, 2, FieldState::Room(Amphipod::Bronze)),
-        ];
-        let amphipods = vec![
-            (fields[0].clone(), Amphipod::Desert),
-            (fields[1].clone(), Amphipod::Amber),
-        ];
-        let state = State::new(amphipods);
-        assert!(!state.is_finished());
+        assert!(grid
+            .find_path(Pos::new(3, 2), Pos::new(1, 1), &mut start)
+            .is_some());
+        assert!(grid
+            .find_path(Pos::new(3, 2), Pos::new(2, 1), &mut start)
+            .is_some());
+        assert!(grid
+            .find_path(Pos::new(5, 2), Pos::new(3, 1), &mut start)
+            .is_some());
+        assert!(grid
+            .find_path(Pos::new(5, 2), Pos::new(4, 1), &mut start)
+            .is_some());
+        assert!(grid
+            .find_path(Pos::new(9, 2), Pos::new(9, 1), &mut start)
+            .is_some());
+
+        assert!(grid
+            .find_path(Pos::new(3, 3), Pos::new(3, 1), &mut start)
+            .is_none());
+        assert!(grid
+            .find_path(Pos::new(5, 3), Pos::new(4, 1), &mut start)
+            .is_none());
+        assert!(grid
+            .find_path(Pos::new(7, 4), Pos::new(5, 1), &mut start)
+            .is_none());
+        assert!(grid
+            .find_path(Pos::new(9, 5), Pos::new(6, 1), &mut start)
+            .is_none());
     }
 
     #[test]
     fn test_organize_amphipods() {
-        let grid = parse_input(INPUT);
-        assert_eq!(12521, grid.organize().unwrap());
+        let (grid, start) = parse_input(INPUT);
+        assert_eq!(12521, grid.organize(&start, 0, &mut HashMap::new()));
+    }
+
+    #[test]
+    fn test_organize_2nd_solution() {
+        let (grid, start) = parse_input(INPUT2);
+        assert_eq!(44169, grid.organize(&start, 0, &mut HashMap::new()));
     }
 }
