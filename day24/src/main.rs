@@ -7,23 +7,29 @@ trait Applicable {
 
 peg::parser! {
     grammar line_parser() for str {
-        rule variable() -> Variable
-            = var:$(['w' | 'x' | 'y' | 'z']) { var.into() }
+        rule register() -> Register
+            = reg:$(['w' | 'x' | 'y' | 'z']) { Register::from(reg) }
+
+        rule variable_register() -> Variable
+            = reg:register() { Variable::Register(Register::from(reg)) }
 
         rule number() -> Variable
             = n:$(['-']* ['0'..='9']+) { Variable::Number(n.parse().unwrap()) }
 
+        rule variable() -> Variable
+            = r:variable_register() / r:number() { Variable::from(r) }
+
         rule input() -> Instruction
-            = "inp " var:variable() { Instruction::Input(var) }
+            = "inp " reg:register() { Instruction::Input(reg) }
 
         rule add() -> Instruction
-            = "add " a:variable() " " b:number() {
-                Instruction::Add(Add { a, b })
+            = "add " a:register() " " b:variable() {
+                Instruction::Add(a, b)
             }
 
         rule mul() -> Instruction
-            = "mul " a:variable() " " b:number() {
-                Instruction::Mul(Mul { a, b })
+            = "mul " a:register() " " b:variable() {
+                Instruction::Mul(a, b)
             }
 
         pub(crate) rule instruction() -> Instruction
@@ -36,61 +42,58 @@ peg::parser! {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Variable {
-    Register(usize),
-    Number(i32),
+enum Register {
+    W,
+    X,
+    Y,
+    Z,
 }
 
-impl From<&str> for Variable {
+impl From<&str> for Register {
     fn from(s: &str) -> Self {
         match s {
-            "w" => Variable::Register(0),
-            "x" => Variable::Register(1),
-            "y" => Variable::Register(2),
-            "z" => Variable::Register(3),
-            n => Variable::Number(n.parse::<i32>().expect("Failed to parse number")),
+            "w" => Register::W,
+            "x" => Register::X,
+            "y" => Register::Y,
+            "z" => Register::Z,
+            _ => panic!("Invalid register."),
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct Add {
-    pub a: Variable,
-    pub b: Variable,
+#[derive(Debug, PartialEq, Eq)]
+enum Variable {
+    Register(Register),
+    Number(i32),
 }
 
-impl Applicable for Add {
-    fn apply(&self, alu: &mut ALU) {
-        // alu.variables[usize::from(self.a)] += b
-        todo!()
+impl From<i32> for Variable {
+    fn from(v: i32) -> Self {
+        Self::Number(v)
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct Mul {
-    pub a: Variable,
-    pub b: Variable,
-}
-
-impl Applicable for Mul {
-    fn apply(&self, alu: &mut ALU) {
-        todo!()
+impl From<Register> for Variable {
+    fn from(reg: Register) -> Self {
+        Self::Register(reg)
     }
 }
 
 #[derive(Debug, PartialEq)]
 enum Instruction {
-    Input(Variable),
-    Add(Add),
-    Mul(Mul),
+    Input(Register),
+    Add(Register, Variable),
+    Mul(Register, Variable),
+    Mod(Register, Variable),
 }
 
 impl Applicable for Instruction {
     fn apply(&self, alu: &mut ALU) {
         match self {
-            Instruction::Input(variable) => alu.set(variable),
-            Instruction::Add(add) => add.apply(alu),
-            Instruction::Mul(mul) => mul.apply(alu),
+            Instruction::Input(variable) => (),
+            Instruction::Add(a, b) => (),
+            Instruction::Mul(a, b) => (),
+            Instruction::Mod(a, b) => (),
         }
     }
 }
@@ -188,7 +191,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input, Instruction, Mul, Variable};
+    use crate::{Instruction, Register, Variable, parse_input};
 
     #[test]
     fn test_parse_input() {
@@ -199,11 +202,8 @@ mod tests {
         let instructions = parse_input(input).expect("Failed to parse.");
         assert_eq!(
             vec![
-                Instruction::Input(Variable::Register(1)),
-                Instruction::Mul(Mul {
-                    a: Variable::Register(1),
-                    b: Variable::Number(-1),
-                }),
+                Instruction::Input(Register::X),
+                Instruction::Mul(Register::X, Variable::Number(-1)),
             ],
             instructions,
         );
